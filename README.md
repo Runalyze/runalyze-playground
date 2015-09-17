@@ -29,3 +29,5 @@ $LOAD_JS = false;
  - [feature/d3js](https://github.com/Runalyze/runalyze-playground/tree/master/feature/d3js)
   - `small-routes.php` create small graphics of your routes
   - `punchcard.php` punchcard of date/datetime for all activities
+ - [ui/css](https://github.com/Runalyze/runalyze-playground/tree/master/ui/css)
+  - `circle-progress.php` half circle as progress bar
