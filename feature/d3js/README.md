@@ -10,3 +10,6 @@ GitHub is using it for all these sexy plots as well.
  - [punchcard.php](https://github.com/Runalyze/runalyze-playground/tree/master/feature/d3js/punchcard.php)
   - `feature/d3js/punchcard.php`
   - draw a punchcard of date/datetime for all activities
+ - [pointmap.html](https://github.com/Runalyze/runalyze-playground/blob/master/feature/d3js/pointmap.html)
+  - Create CSV Data (SELECT startpoint_lat, startpoint_lng INTO OUTFILE '~datapoints.csv' FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"'  LINES TERMINATED BY '\n' FROM `runalyze_route` WHERE startpoint_lng != '';)
+  - Add "latitude,longitude" to the first line of the file
