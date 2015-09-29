@@ -32,8 +32,9 @@ foreach ($Trackdata->properties() as $key) {
 		echo 'mean:   '.sprintf("%12.3f", $TimeSeries->mean()).PHP_EOL;
 		echo 'median: '.sprintf("%12.3f", $TimeSeries->median()).PHP_EOL;
 		echo 'max:    '.sprintf("%12.3f", $TimeSeries->max()).PHP_EOL;
+		echo 'mode:   '.sprintf("%12.3f", $TimeSeries->mode()).PHP_EOL;
 		echo 'var:    '.sprintf("%12.3f", $TimeSeries->variance()).PHP_EOL;
-		echo 'std:    '.sprintf("%12.3f", pow($TimeSeries->variance(), .5)).PHP_EOL;
+		echo 'std:    '.sprintf("%12.3f", $TimeSeries->stdDev()).PHP_EOL;
 		echo '</pre>';
 		echo '&nbsp;';
 	}
