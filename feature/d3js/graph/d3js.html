@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style> /* set the CSS */
+
+body { font: 12px Arial;}
+
+path {
+    stroke: steelblue;
+    stroke-width: 2;
+    fill: none;
+}
+
+.axis path,
+.axis line {
+    fill: none;
+    stroke: grey;
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+</style>
+    <title>JSON Activity Graph</title>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.9/d3.js"></script>
+</head>
+
+<body>
+  <div id="chart"></div>
+
+
+<script type="text/javascript">
+
+// Set the dimensions of the canvas / graph
+var margin = {top: 30, right: 20, bottom: 30, left: 50},
+    width = 600 - margin.left - margin.right,
+    height = 270 - margin.top - margin.bottom;
+
+// Parse the date / time
+//var parseDate = d3.time.format("%d-%b-%y").parse;
+
+// Set the ranges
+
+var x = d3.scale.linear().range([0, width]);
+var y = d3.scale.linear().range([height, 0]);
+
+// Define the axes
+var xAxis = d3.svg.axis().scale(x)
+    .orient("bottom").ticks(10);
+
+var yAxis = d3.svg.axis().scale(y)
+    .orient("left").ticks(10);
+
+// Define the line
+var valueline = d3.svg.line()
+    .x(function(d) { return x(d.time); })
+    .y(function(d) { return y(d.heartrate); });
+
+
+
+// Adds the svg canvas
+var svg = d3.select("body")
+    .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+        .attr("transform",
+              "translate(" + margin.left + "," + margin.top + ")");
+    var data = [];
+
+
+    d3.json("data.php", function(error, data) {
+      var graphdata = [];
+
+      for (var i = 0, len = data.time.length; i < len; i++) {
+          graphdata[i] = {};
+          graphdata[i]['time'] = data.time[i];
+          graphdata[i]['heartrate'] = data.heartrate[i];
+          graphdata[i]['distance'] = data.distance[i];
+          graphdata[i]['cadence'] = data.cadence[i];
+          graphdata[i]['groundcontact'] = data.groundcontact[i];
+          graphdata[i]['groundcontact_balance'] = data.groundcontact_balance[i];
+          graphdata[i]['vertical_oscillation'] = data.vertical_oscillation[i];
+          graphdata[i]['temperature'] = data.temperature[i];
+      }
+
+        // Scale the range of the data
+        x.domain(d3.extent(graphdata, function(d) { return d.time; }));
+        y.domain([50, getMaxOfArray(data.heartrate)]);
+
+        // Add the valueline path.
+        svg.append("path")
+            .attr("class", "line")
+            .attr("d", valueline(graphdata));
+
+        // Add the X Axis
+        svg.append("g")
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height + ")")
+            .call(xAxis);
+
+        // Add the Y Axis
+        svg.append("g")
+            .attr("class", "y axis")
+            .call(yAxis);
+
+    });
+    function getMaxOfArray(numArray) {
+      return Math.max.apply(null, numArray);
+    }
+</script>
+
+
+</body>
+
+</html>
