@@ -1,6 +1,7 @@
 <?php
 
 use Runalyze\Model\Route;
+use League\Geotools\Geohash\Geohash;
 
 $LOAD_JS = false;
 require_once '../../bootstrap.php';
@@ -42,7 +43,7 @@ var line = d3.svg.line().interpolate('monotone').x(function(d) { return x(d.x); 
 <?php
 $Statement = DB::getInstance()->query(
 	'SELECT * FROM `'.PREFIX.'route`
-	WHERE min_lat != 0 AND max_lat != 0 AND min_lng != 0 AND max_lng != 0
+	WHERE `geohashes` IS NOT NULL
 	ORDER BY `id` DESC LIMIT '.$limit
 );
 
@@ -55,16 +56,21 @@ while ($Data = $Statement->fetch()) {
 	while (!$Loop->isAtEnd()) {
 		$Loop->nextStep();
 
-		if ($Loop->latitude() != 0 && $Loop->longitude()) {
-			$Path[] = array('y' => $Loop->latitude(), 'x' => $Loop->longitude());
+		$Coordinate = (new Geohash())->decode($Loop->geohash())->getCoordinate();
+
+		if (abs($Coordinate->getLatitude()) > 1e-5 || abs($Coordinate->getLongitude()) > 1e-5) {
+			$Path[] = array('y' => $Coordinate->getLatitude(), 'x' => $Coordinate->getLongitude());
 		}
 	}
+
+	$Min = (new Geohash())->decode($Route->get(Route\Object::MIN))->getCoordinate();
+	$Max = (new Geohash())->decode($Route->get(Route\Object::MAX))->getCoordinate();
 
 	if (!empty($Path)) {
 		echo '<div id="route-'.$Route->id().'" class="route" title="'.htmlspecialchars($Route->name()).'"></div>';
 		echo '<script type="text/javascript">';
-		echo 'var y = d3.scale.linear().domain(['.$Route->get(Route\Object::MIN_LATITUDE).', '.$Route->get(Route\Object::MAX_LATITUDE).']).range([size, 0]);';
-		echo 'var x = d3.scale.linear().domain(['.$Route->get(Route\Object::MIN_LONGITUDE).', '.$Route->get(Route\Object::MAX_LONGITUDE).']).range([0, size]);';
+		echo 'var y = d3.scale.linear().domain(['.$Min->getLatitude().', '.$Max->getLatitude().']).range([size, 0]);';
+		echo 'var x = d3.scale.linear().domain(['.$Min->getLongitude().', '.$Max->getLongitude().']).range([0, size]);';
 		echo 'var line = d3.svg.line().interpolate(\'monotone\').x(function(d) { return x(d.x); }).y(function(d) { return y(d.y); });';
 		echo 'var data = '.json_encode($Path).';';
 		echo 'd3.select("#route-'.$Route->id().'").append("svg").datum(data).attr("width", size).attr("height", size).append("path").attr("class", "line").attr("d", line);';
