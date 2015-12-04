@@ -27,6 +27,7 @@ $LOAD_JS = false;
  - [example/distribution](https://github.com/Runalyze/runalyze-playground/tree/master/example/distribution)
   - `statistics.php` calculate min/mean/max/var for trackdata arrays
  - [feature/d3js](https://github.com/Runalyze/runalyze-playground/tree/master/feature/d3js)
+  - `sparklines.php` create small sparklines for pace/hr/...
   - `small-routes.php` create small graphics of your routes
   - `punchcard.php` punchcard of date/datetime for all activities
  - [ui/css](https://github.com/Runalyze/runalyze-playground/tree/master/ui/css)

@@ -29,15 +29,6 @@ $stepsize = isset($_GET['stepsize']) ? (int)$_GET['stepsize'] : 10;
 
 <script type="text/javascript">
 var size = <?php echo $size; ?>;
-
-
-var data = d3.range(20).map(function(i) {
-  return {x: i / 19, y: (Math.sin(i / 3) + 2) / 4};
-});
-
-var x = d3.scale.linear().domain([0, 1]).range([0, size]);
-var y = d3.scale.linear().domain([0, 1]).range([size, 0]);
-var line = d3.svg.line().interpolate('monotone').x(function(d) { return x(d.x); }).y(function(d) { return y(d.y); });
 </script>
 
 <?php
