@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Leaflet Map with Heatmap </title>
+    <meta charset="utf-8" />
+    <link
+        rel="stylesheet"
+        href="http://cdn.leafletjs.com/leaflet-0.7/leaflet.css"
+    />
+</head>
+<body>
+    <div id="map" style="width: 1600px; height: 900px"></div>
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+    <script
+       src="http://cdn.leafletjs.com/leaflet-0.7/leaflet.js">
+    </script>
+    <script src="https://runalyze.com/build/scripts.min.js?v=2.3.0"></script>
+
+    <script
+       src="http://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js">
+    </script>
+
+    <script>
+
+
+    d3.csv('heatmap.csv', function (error, datapoints) {
+      var coordinates = [];
+      var i = 0;
+      datapoints.forEach(function(d, i) {
+        coords = Geohash.decode(d.geohash);
+        coordinates[i] = [coords.lat, coords.lon, d.count];
+        console.log(coordinates[i]);
+        i++;
+      });
+        console.log(coordinates);
+
+        //play with values
+        //have a look at https://dev.socrata.com/consumers/examples/animated-heatmap.html for other settings
+        var heat = L.heatLayer(coordinates,{
+            radius: 10,
+            blur: 2,
+            maxZoom: 15,
+            scaleRadius: true,
+            max: 50 
+        }).addTo(map);
+      });
+
+        var map = L.map('map').setView([48.2842,14.3131], 6);
+        mapLink =
+            '<a href="http://openstreetmap.org">OpenStreetMap</a>';
+        L.tileLayer(
+            'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; ' + mapLink + ' Contributors',
+            maxZoom: 20,
+        }).addTo(map);
+
+
+
+    </script>
+</body>
+</html>
