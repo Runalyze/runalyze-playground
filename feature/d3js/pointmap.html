@@ -48,25 +48,23 @@
 
     <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.css" />
     <script src="http://cdn.leafletjs.com/leaflet-0.7.2/leaflet.js"></script>
-
+  <script src="https://runalyze.com/build/scripts.min.js?v=2.3.0"></script>
     <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
 
 
     <script>
         d3.csv('datapoints.csv', function (error, incidents) {
-
             function reformat(array) {
                 var data = [];
                 array.map(function (d, i) {
-
+                  coordinates = Geohash.decode(d.geohash);
                     data.push({
                         id: i,
                         type: "Feature",
                         geometry: {
-                            coordinates: [+d.longitude, +d.latitude],
+                            coordinates: [+coordinates.lon, +coordinates.lat],
                             type: "Point"
                         }
-                       
 
                     });
                 });
@@ -212,7 +210,7 @@
             }
 
             function redrawSubset(subset) {
-                path.pointRadius(1);// * scale);
+                path.pointRadius(3);// * scale);
 
                 var bounds = path.bounds({ type: "FeatureCollection", features: subset });
                 var topLeft = bounds[0];

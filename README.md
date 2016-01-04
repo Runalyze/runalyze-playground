@@ -28,6 +28,8 @@ $LOAD_JS = false;
   - `statistics.php` calculate min/mean/max/var for trackdata arrays
  - [example/moving-average](https://github.com/Runalyze/runalyze-playground/tree/master/example/moving-average)
   - `moving-average.php` smooth pace data based on moving average with different kernels
+ - [example/sunrise](https://github.com/Runalyze/runalyze-playground/tree/master/example/sunrise)
+  - `sunrise-sunset-plot.php` calculate and visualize sunset/sunrise
  - [feature/d3js](https://github.com/Runalyze/runalyze-playground/tree/master/feature/d3js)
   - `sparklines.php` create small sparklines for pace/hr/...
   - `small-routes.php` create small graphics of your routes
