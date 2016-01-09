@@ -26,6 +26,8 @@ $LOAD_JS = false;
 ## Index
  - [example/distribution](https://github.com/Runalyze/runalyze-playground/tree/master/example/distribution)
   - `statistics.php` calculate min/mean/max/var for trackdata arrays
+ - [example/hrv](https://github.com/Runalyze/runalyze-playground/tree/master/example/hrv)
+  - `hrv-table.php` show history of hrv values
  - [example/moving-average](https://github.com/Runalyze/runalyze-playground/tree/master/example/moving-average)
   - `moving-average.php` smooth pace data based on moving average with different kernels
  - [example/sunrise](https://github.com/Runalyze/runalyze-playground/tree/master/example/sunrise)
