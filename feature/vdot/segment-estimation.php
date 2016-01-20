@@ -32,7 +32,7 @@ while ($data = $Statement->fetch()) {
 	echo '<strong>'.date('d.m.Y', $data['timestamp']).', '.$data['km'].'k in '.Duration::format($data['s']).' at &oslash; '.$data['pulse_avg'].'bpm = VDOT '.$data['vdot'].'</strong>';
 
 
-	$Trackdata = new Trackdata\Object($data);
+	$Trackdata = new Trackdata\Entity($data);
 	$Loop = new Trackdata\Loop($Trackdata);
 	$VDOTs = array();
 	$VDOT = new VDOT();
@@ -41,9 +41,9 @@ while ($data = $Statement->fetch()) {
 		$Loop->moveDistance($stepDistance);
 
 		$VDOT->fromPaceAndHR(
-			$Loop->difference(Trackdata\Object::DISTANCE),
-			$Loop->difference(Trackdata\Object::TIME),
-			$Loop->average(Trackdata\Object::HEARTRATE)/HF_MAX
+			$Loop->difference(Trackdata\Entity::DISTANCE),
+			$Loop->difference(Trackdata\Entity::TIME),
+			$Loop->average(Trackdata\Entity::HEARTRATE)/HF_MAX
 		);
 
 		$VDOTs[$Loop->time().'000'] = $VDOT->value();

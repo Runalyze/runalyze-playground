@@ -88,7 +88,7 @@ $Statement = DB::getInstance()->query(
 );
 
 while ($Row = $Statement->fetch()) {
-	$Trackdata = new Trackdata\Object($Row);
+	$Trackdata = new Trackdata\Entity($Row);
 	$Loop = new Trackdata\Loop($Trackdata);
 	$Loop->setStepSize(round($Loop->num() / $points));
 	$Data = array();
@@ -97,11 +97,11 @@ while ($Row = $Statement->fetch()) {
 		$Loop->nextStep();
 		$Data[] = array(
 			$Loop->time(),
-			$Loop->current(Trackdata\Object::PACE),
-			$Loop->current(Trackdata\Object::HEARTRATE),
-			$Loop->current(Trackdata\Object::CADENCE),
-			$Loop->current(Trackdata\Object::GROUNDCONTACT),
-			$Loop->current(Trackdata\Object::VERTICAL_OSCILLATION)
+			$Loop->current(Trackdata\Entity::PACE),
+			$Loop->current(Trackdata\Entity::HEARTRATE),
+			$Loop->current(Trackdata\Entity::CADENCE),
+			$Loop->current(Trackdata\Entity::GROUNDCONTACT),
+			$Loop->current(Trackdata\Entity::VERTICAL_OSCILLATION)
 		);
 	}
 
@@ -119,11 +119,11 @@ while ($Row = $Statement->fetch()) {
 
 		echo '<script type="text/javascript">';
 		echo 'var data_'.$id.' = '.json_encode($Data, JSON_NUMERIC_CHECK).';';
-		if ($Trackdata->has(Trackdata\Object::PACE)) echo 'sparkline("#sparkline-pace-'.$id.'", data_'.$id.', 1);';
-		if ($Trackdata->has(Trackdata\Object::HEARTRATE)) echo 'sparkline("#sparkline-hr-'.$id.'", data_'.$id.', 2, 0, '.HF_MAX.');';
-		if ($Trackdata->has(Trackdata\Object::CADENCE)) echo 'sparkline("#sparkline-rpm-'.$id.'", data_'.$id.', 3);';
-		if ($Trackdata->has(Trackdata\Object::GROUNDCONTACT)) echo 'sparkline("#sparkline-gc-'.$id.'", data_'.$id.', 4);';
-		if ($Trackdata->has(Trackdata\Object::VERTICAL_OSCILLATION)) echo 'sparkline("#sparkline-vo-'.$id.'", data_'.$id.', 5);';
+		if ($Trackdata->has(Trackdata\Entity::PACE)) echo 'sparkline("#sparkline-pace-'.$id.'", data_'.$id.', 1);';
+		if ($Trackdata->has(Trackdata\Entity::HEARTRATE)) echo 'sparkline("#sparkline-hr-'.$id.'", data_'.$id.', 2, 0, '.HF_MAX.');';
+		if ($Trackdata->has(Trackdata\Entity::CADENCE)) echo 'sparkline("#sparkline-rpm-'.$id.'", data_'.$id.', 3);';
+		if ($Trackdata->has(Trackdata\Entity::GROUNDCONTACT)) echo 'sparkline("#sparkline-gc-'.$id.'", data_'.$id.', 4);';
+		if ($Trackdata->has(Trackdata\Entity::VERTICAL_OSCILLATION)) echo 'sparkline("#sparkline-vo-'.$id.'", data_'.$id.', 5);';
 		echo '</script>';
 	}
 }
