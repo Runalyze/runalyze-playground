@@ -33,13 +33,13 @@ var size = <?php echo $size; ?>;
 
 <?php
 $Statement = DB::getInstance()->query(
-	'SELECT * FROM `'.PREFIX.'route`
-	WHERE `geohashes` IS NOT NULL
+	'SELECT `id`, `geohashes`, `max`, `min` FROM `'.PREFIX.'route`
+	WHERE `geohashes` IS NOT NULL AND `geohashes` != ""
 	ORDER BY `id` DESC LIMIT '.$limit
 );
 
 while ($Data = $Statement->fetch()) {
-	$Route = new Route\Object($Data);
+	$Route = new Route\Entity($Data);
 	$Loop = new Route\Loop($Route);
 	$Loop->setStepSize($stepsize);
 	$Path = array();
@@ -54,14 +54,28 @@ while ($Data = $Statement->fetch()) {
 		}
 	}
 
-	$Min = (new Geohash())->decode($Route->get(Route\Object::MIN))->getCoordinate();
-	$Max = (new Geohash())->decode($Route->get(Route\Object::MAX))->getCoordinate();
+	$Min = (new Geohash())->decode($Route->get(Route\Entity::MIN))->getCoordinate();
+	$Max = (new Geohash())->decode($Route->get(Route\Entity::MAX))->getCoordinate();
+
+	$MinLat = $Min->getLatitude();
+	$MaxLat = $Max->getLatitude();
+	$MinLng = $Min->getLongitude();
+	$MaxLng = $Max->getLongitude();
+	$Diff = abs($MaxLat - $MinLat) - abs($MaxLng - $MinLng)*cos(deg2rad($MaxLat));
+
+	if ($Diff > 0) {
+		$MaxLng += $Diff/2;
+		$MinLng -= $Diff/2;
+	} else {
+		$MaxLat += -$Diff/2;
+		$MinLat -= -$Diff/2;
+	}
 
 	if (!empty($Path)) {
 		echo '<div id="route-'.$Route->id().'" class="route" title="'.htmlspecialchars($Route->name()).'"></div>';
 		echo '<script type="text/javascript">';
-		echo 'var y = d3.scale.linear().domain(['.$Min->getLatitude().', '.$Max->getLatitude().']).range([size, 0]);';
-		echo 'var x = d3.scale.linear().domain(['.$Min->getLongitude().', '.$Max->getLongitude().']).range([0, size]);';
+		echo 'var y = d3.scale.linear().domain(['.$MinLat.', '.$MaxLat.']).range([size, 0]);';
+		echo 'var x = d3.scale.linear().domain(['.$MinLng.', '.$MaxLng.']).range([0, size]);';
 		echo 'var line = d3.svg.line().interpolate(\'monotone\').x(function(d) { return x(d.x); }).y(function(d) { return y(d.y); });';
 		echo 'var data = '.json_encode($Path).';';
 		echo 'd3.select("#route-'.$Route->id().'").append("svg").datum(data).attr("width", size).attr("height", size).append("path").attr("class", "line").attr("d", line);';
