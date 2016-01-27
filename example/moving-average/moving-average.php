@@ -35,7 +35,10 @@ $allKernels = Kernel\Kernels::getEnum();
 $activityID = isset($_GET['activityID']) ? $_GET['activityID'] : null;
 $accountID = isset($_GET['accountID']) ? $_GET['accountID'] : 0;
 $smoothing = isset($_GET['smoothing']) ? ($_GET['smoothing'] == '1') : true;
+$precision = isset($_GET['precision']) ? $_GET['precision'] : '1000points';
 $widths = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0];
+
+Runalyze\Configuration::ActivityView()->plotPrecision()->set($precision);
 
 if (null === $activityID) {
     die('You must specify a moving-average.php?activityID=...');
