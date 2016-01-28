@@ -36,7 +36,9 @@ $activityID = isset($_GET['activityID']) ? $_GET['activityID'] : null;
 $accountID = isset($_GET['accountID']) ? $_GET['accountID'] : 0;
 $smoothing = isset($_GET['smoothing']) ? ($_GET['smoothing'] == '1') : true;
 $precision = isset($_GET['precision']) ? $_GET['precision'] : '1000points';
-$widths = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0];
+$widths = [10, 30, 60, 120, 300];
+//$widths = [0.05, 0.1, 0.2, 0.35, 0.5];
+$alphas = [0.99, 0.975, 0.95, 0.90, 0.75];
 
 Runalyze\Configuration::ActivityView()->plotPrecision()->set($precision);
 
@@ -62,7 +64,7 @@ body {
 	<thead>
 		<tr>
 			<th>type</th>
-            <?php foreach ($widths as $width) echo '<th>'.$width.'</th>'; ?>
+            <?php foreach ($widths as $width) echo '<th>'.$width.'s</th>'; ?>
 		</tr>
 	</thead>
 	<tbody>
@@ -75,17 +77,39 @@ body {
             ?></td>
             <?php for ($i = 0; $i < count($widths)-1; ++$i) echo '<td></td>'; ?>
         </tr>
+        <tr>
+            <td>EXPONENTIAL<br>alpha&nbsp;=&nbsp;...<br><?php echo implode('<br>', $alphas); ?></td>
+<?php
+foreach ($alphas as $i => $alpha) {
+    echo '<td>';
+
+    $MovingAverage = new MovingAverage\Exponential($Context->trackdata()->pace(), $Context->trackdata()->distance());
+    $MovingAverage->setAlpha($alpha);
+    $MovingAverage->calculate();
+
+    $ContextCopy = clone $Context;
+    $ContextCopy->trackdata()->set(Trackdata::PACE, $MovingAverage->movingAverage());
+
+    $Plot = new AdjustedPace($ContextCopy, 'exponential_'.$i);
+    $Plot->plot()->smoothing($smoothing);
+    $Plot->display();
+
+    echo '</td>';
+}
+?>
+        </tr>
 <?php
 $Context = new Context($activityID, $accountID);
 
 foreach ($allKernels as $kernelName => $kernelType) {
     echo '<tr>';
-    echo '<td>'.$kernelName.' (id = '.$kernelType.')</td>';
+    echo '<td>#'.$kernelType.'&nbsp;'.$kernelName.'</td>';
 
     foreach ($widths as $i => $width) {
         echo '<td>';
 
-        $MovingAverage = new MovingAverage\WithKernel($Context->trackdata()->pace(), $Context->trackdata()->distance());
+        $MovingAverage = new MovingAverage\WithKernel($Context->trackdata()->pace(), $Context->trackdata()->time());
+        //$MovingAverage = new MovingAverage\WithKernel($Context->trackdata()->pace(), $Context->trackdata()->distance());
         //$MovingAverage = new MovingAverage\WithKernel($Context->trackdata()->pace());
         $MovingAverage->setKernel(Kernel\Kernels::get($kernelType, $width));
         $MovingAverage->calculate();
