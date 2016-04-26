@@ -36,5 +36,7 @@ $LOAD_JS = false;
   - `sparklines.php` create small sparklines for pace/hr/...
   - `small-routes.php` create small graphics of your routes
   - `punchcard.php` punchcard of date/datetime for all activities
+ - [feature/hrmax](https://github.com/Runalyze/runalyze-playground/tree/master/feature/hrmax)
+  - `find-hrmax.php` find max hr (last 3 months)
  - [ui/css](https://github.com/Runalyze/runalyze-playground/tree/master/ui/css)
   - `circle-progress.php` half circle as progress bar
