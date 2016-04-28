@@ -74,7 +74,7 @@ $distance = 0;
 while (!($Loop[1]->isAtEnd())) {
     $distance += 0.05;
     $Loop[0]->moveToDistance($distance);
-    $timediff0[number_format($Loop[0]->distance(), 1)] = '0';
+    $timediff[0][number_format($Loop[0]->distance(), 1)] = '0';
 
     for ($i = 1; $i <= $activityCount; $i++) {
         $Loop[$i]->moveToDistance($distance * $distCoef[$i]);
@@ -86,7 +86,6 @@ while (!($Loop[1]->isAtEnd())) {
 $Plot = new Plot('diff-' . $data['id'], 600, 190);
 $Plot->Data[] = array('label' => 'Virtual racer @' . $vRacerPace, 'data' => $distdiff[0]);
 for ($i = 1; $i <= $activityCount; $i++) {
-    $Loop[$i]->reset();
     $Plot->Data[] = array('label' => 'Distance ' . $i . ' vs ' . $vRacerPace, 'data' => $distdiff[$i]);
 }
 //$Plot->showPoints();
@@ -94,15 +93,13 @@ $Plot->setXAxisAsTime();
 $Plot->setXAxisTimeFormat("%h:%M:%S");
 $Plot->Options['xaxis']['ticks'] = 5;
 $Plot->smoothing(false);
-//$Plot->addThreshold('y', $data['vdot']);
 
 $Plot->outputDiv();
 $Plot->outputJavaScript();
 
 $Plot = new IntervalPlot('diff-time-' . $data['id'], 600, 190);
-$Plot->Data[] = array('label' => 'Virtual racer @' . $vRacerPace, 'data' => $timediff0);
+$Plot->Data[] = array('label' => 'Virtual racer @' . $vRacerPace, 'data' => $timediff[0]);
 for ($i = 1; $i <= $activityCount; $i++) {
-    $Loop[$i]->reset();
     $Plot->Data[] = array('label' => 'Time ' . $i . ' vs ' . $vRacerPace, 'data' => $timediff[$i]);
 }
 //$Plot->showPoints();
@@ -115,11 +112,9 @@ $Plot->Options['yaxis']['minTickSize'] = 60000;
 
 $Plot->Options['xaxis']['ticks'] = 5;
 $Plot->smoothing(false);
-//$Plot->addThreshold('y', $data['vdot']);
 
 $Plot->outputDiv();
 $Plot->outputJavaScript();
-//$CombinedPlot = new PaceAndHeartrate(new \Runalyze\View\Activity\Context);
 
 
 echo Ajax::wrapJSforDocumentReady('Runalyze.createFlot();');
