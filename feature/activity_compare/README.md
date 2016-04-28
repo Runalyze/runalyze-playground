@@ -9,3 +9,5 @@ Compare one or more running activities to constant pace virtual racer.
 `adjustDistance` - usually GPS receivers will show longer distance than official, this will adjust the distance proportionally, defaults to yes
 
 Charts will show how many meters or seconds the activity is ahead or behind virtual racer.
+
+![Example chart](activity_compare.png)
