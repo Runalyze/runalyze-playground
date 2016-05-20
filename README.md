@@ -36,6 +36,7 @@ $LOAD_JS = false;
   - `sparklines.php` create small sparklines for pace/hr/...
   - `small-routes.php` create small graphics of your routes
   - `punchcard.php` punchcard of date/datetime for all activities
+  - `radar-heatmap.php` radar heatmap of weekday/hours for all activities
  - [feature/activitiy_compare](https://github.com/Runalyze/runalyze-playground/tree/master/feature/activity_compare)
   - `activity-compare.php` compare one or more running activities to constant pace virtual racer.
  - [feature/hrmax](https://github.com/Runalyze/runalyze-playground/tree/master/feature/hrmax)
