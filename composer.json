@@ -1,0 +1,15 @@
+{
+    "name": "runalyze/playground",
+    "description": "playground for runalyze - where new ideas grow",
+    "keywords": ["runalyze", "symfony3"],
+    "authors": [
+        {
+            "name": "RUNALYZE Team",
+            "email": "mail@runalyze.com",
+            "homepage": "https://runalyze.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": { "Runalyze\\Bundle\\PlaygroundBundle\\": "" }
+    }
+}
