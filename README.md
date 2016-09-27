@@ -4,24 +4,36 @@ A new tool or statistic? Some useful queries, nice plots or new UI components? J
 
 We'll have a look at all ideas and hopefully someday they'll become a real feature.
 
-## Usage
-You probably have to create your own `config.php` to apply your own directory structure, e.g.
-```php
-$URL_BASE_TO_RUNALYZE	= 'http://localhost/runalyze/';
+## 
+Enable the bundle:
+
+```
+<?php
+// app/AppKernel.php
+
+public function registerBundles()
+{
+    $bundles = array(
+        // ...
+            new \Runalyze\Bundle\PlaygroundBundle\PlaygroundBundle(),
+        // ...
+    );
+}
 ```
 
-To start a new example just create your file, e.g. `feature/my-feature/example.php` and include bootstrap:
-```php
-require_once '../../bootstrap.php';
-```
+Mount routing file in AppKernel:
 
-For every idea you can define what to load (before you bootstrap):
-```php
-$LOAD_FRONTEND = true;
-$LOAD_HTML = true;
-$LOAD_CSS = false;
-$LOAD_JS = false;
 ```
+    /**
+     * @param \Symfony\Component\Routing\RouteCollectionBuilder $routes
+     */
+    protected function configureRoutes(RouteCollectionBuilder $routes)
+    {
+        ...
+
+        $routes->import('@PlaygroundBundle/Resources/config/routing.yml', 'playground');
+    }
+   ```
 
 ## Index
  - [example/distribution](https://github.com/Runalyze/runalyze-playground/tree/master/example/distribution)

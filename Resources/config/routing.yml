@@ -1,0 +1,11 @@
+playground-index:
+    defaults: { _controller: 'PlaygroundBundle:Default:index' }
+    path: /
+
+playground-hrv-table:
+    defaults: { _controller: 'PlaygroundBundle:Hrv:hrvTable' }
+    path: /hrv-table
+
+playground-sunrise:
+    defaults: { _controller: 'PlaygroundBundle:SunriseExample:sunrise' }
+    path: /sunrise
