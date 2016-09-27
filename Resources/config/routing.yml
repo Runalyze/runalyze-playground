@@ -9,3 +9,7 @@ playground-hrv-table:
 playground-sunrise:
     defaults: { _controller: 'PlaygroundBundle:SunriseExample:sunrise' }
     path: /sunrise
+
+playground-ui-circle-progress:
+    defaults: { _controller: 'PlaygroundBundle:Ui:circleProgress' }
+    path: /ui/circle-progress
