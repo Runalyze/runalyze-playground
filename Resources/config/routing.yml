@@ -13,3 +13,11 @@ playground-sunrise:
 playground-ui-circle-progress:
     defaults: { _controller: 'PlaygroundBundle:Ui:circleProgress' }
     path: /ui/circle-progress
+
+playground-calendarHeatmap:
+    defaults: { _controller: 'PlaygroundBundle:D3js:calendarHeatmap' }
+    path: /d3js/calendar-heatmap
+
+playground-calendarHeatmap-data:
+    defaults: { _controller: 'PlaygroundBundle:D3js:calendarHeatmapData' }
+    path: /d3js/calendar-heatmap-data

@@ -1,9 +1,5 @@
-<html>
-<head>
-<link rel="stylesheet" href="{{ asset('assets/css/runalyze-style.css') }}?v={{ RUNALYZE_VERSION }}">
-<script src="{{ asset('assets/js/scripts.min.js') }}?v={{ RUNALYZE_VERSION }}"></script>
-</head>
-<body>
+{% extends "PlaygroundBundle::base.html.twig" %}
+{% block body %}
 <!-- see original one: https://github.com/Runalyze/runalyze-playground/blob/support/2.x/example/hrv/hrv-table.php -->
 <table class="zebra-style w100">
     <thead>
@@ -47,5 +43,4 @@
     {% endfor %}
     </tbody>
 </table>
-</body>
-</html>
+{% endblock %}

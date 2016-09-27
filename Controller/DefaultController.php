@@ -14,7 +14,7 @@ class DefaultController extends Controller
 {
     public function indexAction()
     {
-        return $this->render('legacy_end.html.twig');
+        return $this->render('PlaygroundBundle::overview.html.twig');
     }
 
     public function testAction()

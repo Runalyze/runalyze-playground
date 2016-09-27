@@ -1,7 +1,6 @@
-<html>
-<head>
-    <link rel="stylesheet" href="{{ asset('assets/css/runalyze-style.css') }}?v={{ RUNALYZE_VERSION }}">
-    <script src="{{ asset('assets/js/scripts.min.js') }}?v={{ RUNALYZE_VERSION }}"></script>
+{% extends "PlaygroundBundle::base.html.twig" %}
+
+{% block body %}
     <style type="text/css">
         .score-half-container {
             position: relative;
@@ -86,9 +85,7 @@
             font-size: 16px;
         }
     </style>
-</head>
 
-<body>
 <pre>&lt;div class=&quot;score-half (score-half-mini)&quot&gt;...&lt;/div&gt;</pre>
 
 <div class="score-half-container">
@@ -120,5 +117,4 @@
         </div>
     </div>
 </div>
-</body>
-</html>
+{% endblock %}
