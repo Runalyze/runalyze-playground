@@ -1,0 +1,42 @@
+{% extends "PlaygroundBundle::base.html.twig" %}
+
+{% block body %}
+    <table class="zebra-style">
+        <thead>
+            <tr>
+                <th>type</th>
+                {% for width in widths %}
+                    <th>{{ width }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>NORMAL</td>
+                <td>{{ plotNormal.display() }}</td>
+                <td colspan="{{ (widths|length - 1) }}"></td>
+            </tr>
+            <tr>
+                <td>
+                    BUTTERWORTH<br>
+                    (order 2)<br>
+                    ff = ...<br>
+                    {{ ffs|join('<br>')|raw }}
+                </td>
+                {% for plot in plotsButterworth %}
+                    <td>{{ plot.display() }}</td>
+                {% endfor %}
+            </tr>
+            {% for kernelIndex, kernel in kernels %}
+                <tr>
+                    <td>{{ kernel|raw }}</td>
+                    {% for i in widths|keys %}
+                        <td>{{ plotsKernel[kernelIndex][i].display() }}</td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>$(function(){ Runalyze.createFlot(); });</script>
+{% endblock %}

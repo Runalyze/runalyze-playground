@@ -7,3 +7,8 @@ We'll have a look at all ideas and hopefully someday they'll become a real featu
 ## Using the bundle
 The PlaygroundBundle is installed as dev-dependency of RUNALYZE and registered in dev mode only.
 In general, it will be available as `runalyze/app_dev.php/_playground` and will show an index of all available tools.
+
+To be able to edit playground files, use in your RUNALYZE directory the following:
+```
+composer update runalyze/playground --prefer-source
+```

@@ -4,6 +4,7 @@ namespace Runalyze\Bundle\PlaygroundBundle\Controller;
 
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
+use Symfony\Component\HttpFoundation\Request;
 use Runalyze\Calculation;
 use Runalyze\Bundle\CoreBundle\Entity\Account;
 use Runalyze\Model;

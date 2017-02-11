@@ -6,6 +6,10 @@ playground-hrv-table:
     defaults: { _controller: 'PlaygroundBundle:Hrv:hrvTable' }
     path: /hrv-table
 
+playground-moving-average:
+    defaults: { _controller: 'PlaygroundBundle:MovingAverage:movingAverage' }
+    path: /moving-average
+
 playground-sunrise:
     defaults: { _controller: 'PlaygroundBundle:SunriseExample:sunrise' }
     path: /sunrise
