@@ -1,6 +1,6 @@
 {% extends "PlaygroundBundle::base.html.twig" %}
+
 {% block body %}
-<!-- see original one: https://github.com/Runalyze/runalyze-playground/blob/support/2.x/example/hrv/hrv-table.php -->
 <table class="zebra-style w100">
     <thead>
     <tr>
@@ -9,7 +9,7 @@
         <th>date</th>
         <th>km</th>
         <th>duration</th>
-        <th>lnRMSSD</th>
+        <th>RMSSD</th>
         <th>pNN50</th>
         <th>pNN20</th>
         <th>&Oslash; RR</th>
@@ -20,27 +20,23 @@
     </tr>
     </thead>
     <tbody>
-
-    {% for hrv in data %}
-
-
-    <tr class="r">
-        <td>#{{ hrv.row.id }}</td>
-        <td><i class="{{ hrv.row.img }}">   </i></td>
-        <td>{{ hrv.row.time |date("m/d/Y") }}</td>
-        <td>{{ hrv.row.distance }}</td>
-        <td>{{ hrv.row.s }}</td>
-        <!-- should be (log($Calculator->RMSSD()) < 4 ? 'minus' : '') for the next class rule -->
-        <td class="{{ hrv.calculator.RMSSD() < 0.01 ? 'minus' : '' }}"> {{ hrv.calculator.RMSSD() | number_format(1) }}<small></small></td>
-        <td class="{{ hrv.calculator.pNN50() < 0.01 ? 'minus' : '' }}">{{ hrv.calculator.pNN50()*100 | number_format(1) }}<small>&#37;</small></td>
-        <td class="{{ hrv.calculator.pNN50() < 0.01 ? 'minus' : '' }}">{{ hrv.calculator.pNN20()*100 | number_format(1) }}<small>&#37;</small></td>
-        <td>{{ hrv.calculator.mean() | round}}<small>ms</small></td>
-        <td>{{ hrv.calculator.RMSSD() | round}}<small>ms</small></td>
-        <td>{{ hrv.calculator.SDSD() | round}} <small>ms</small></td>
-        <td>{{ hrv.calculator.SDNN() | round}}<small>ms</small></td>
-        <td>{{ hrv.calculator.SDANN()| round }}<small>ms</small></td>
-        </tr>
-    {% endfor %}
+        {% for hrv in data %}
+        <tr class="r">
+            <td>#{{ hrv.row.id }}</td>
+            <td><i class="{{ hrv.row.img }}"></i></td>
+            <td>{{ hrv.row.time|date("m/d/Y") }}</td>
+            <td>{{ hrv.row.distance }}</td>
+            <td>{{ hrv.row.s }}</td>
+            <td class="{{ hrv.calculator.RMSSD() < 54 ? 'minus' : '' }}">{{ (hrv.calculator.RMSSD())|number_format(1) }}<small></small></td>
+            <td class="{{ hrv.calculator.pNN50() < 0.01 ? 'minus' : '' }}">{{ (hrv.calculator.pNN50()*100)|number_format(1) }}<small>&#37;</small></td>
+            <td class="{{ hrv.calculator.pNN50() < 0.01 ? 'minus' : '' }}">{{ (hrv.calculator.pNN20()*100)|number_format(1) }}<small>&#37;</small></td>
+            <td>{{ hrv.calculator.mean()|round }}<small>ms</small></td>
+            <td>{{ hrv.calculator.RMSSD()|round }}<small>ms</small></td>
+            <td>{{ hrv.calculator.SDSD()|round }} <small>ms</small></td>
+            <td>{{ hrv.calculator.SDNN()|round }}<small>ms</small></td>
+            <td>{{ hrv.calculator.SDANN()|round }}<small>ms</small></td>
+            </tr>
+        {% endfor %}
     </tbody>
 </table>
 {% endblock %}

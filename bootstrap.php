@@ -1,10 +1,6 @@
 <?php
-include __DIR__.'/config.default.php';
 
-if (file_exists(__DIR__.'/config.php')) {
-	include __DIR__.'/config.php';
-}
-
+$PATH_TO_RUNALYZE = __DIR__.'/../../';
 $LOAD_FRONTEND	= isset($LOAD_FRONTEND) ? $LOAD_FRONTEND : true;
 $LOAD_HTML		= isset($LOAD_HTML) ? $LOAD_HTML : true;
 $LOAD_CSS		= isset($LOAD_CSS) ? $LOAD_CSS : true;
@@ -25,7 +21,7 @@ if ($LOAD_HTML):
 <head>
 	<meta charset="UTF-8">
 
-	<base href="<?php echo $URL_BASE_TO_RUNALYZE; ?>">
+	<base href="/">
 
 	<?php if ($LOAD_CSS): ?><link rel="stylesheet" href="lib/less/runalyze-style.css"><?php endif; ?>
 	<?php if ($LOAD_JS): ?><script src="build/scripts.js"></script><?php endif; ?>

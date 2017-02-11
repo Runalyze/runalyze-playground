@@ -1,15 +1,83 @@
-{% extends "PlaygroundBundle::base.html.twig" %}
-{% block body %}
+{% extends "system/base.html.twig" %}
 
+{% block content %}
+    <h3>Calculations and statistics</h3>
 
-<a href="{{ path('playground-hrv-table') }}">HRV Table</a>
-<br>
-<a href="{{ path('playground-sunrise') }}">Sunrise graph</a>
-<br>
-<a href="{{ path('playground-ui-circle-progress') }}">CSS UI Circle Progress</a>
-<br>
-<a href="{{ path('playground-calendarHeatmap') }}">Calendar Heatmap</a>
-<br>
+    <ul>
+        <li>
+            <strong><a href="{{ path('playground-hrv-table') }}">HRV Table</a></strong><br>
+            <em>Table with hrv statistics for all activities</em>
+        </li>
+    </ul>
 
+    <h3>Design and UI</h3>
 
+    <ul>
+        <li>
+            <strong><a href="{{ path('playground-calendarHeatmap') }}">Calendar Heatmap</a></strong><br>
+            <em>Show d3js calendar heatmap to check on which days you were active</em>
+        </li>
+        <li>
+            <strong><a href="{{ path('playground-ui-circle-progress') }}">CSS/UI: Circle Progress</a></strong>
+        </li>
+    </ul>
+
+    <h3>Other stuff</h3>
+
+    <ul>
+        <li>
+            <strong><a href="{{ path('playground-sunrise') }}">Sunrise graph</a></strong><br>
+            <em>Plot showing sunrise/sunset times for the next 365 days</em>
+        </li>
+    </ul>
+
+    <h3>Old examples that currently do not work</h3>
+
+    <em>These examples did work for Runalye v2.x but need to be adjusted to work within these new bundle.</em><br>
+    <em>All this old stuff is located under <code>/feature/*</code></em>
+
+    <ul>
+        <li>
+            <strong>/activity_compare/activity-compare.php</strong><br>
+            <em>Compare two activities in one pace plot</em>
+        </li>
+        <li>
+            <strong>/d3js</strong>
+            <ul>
+                <li>
+                    <strong>/graph/d3js.html</strong>
+                </li>
+                <li>
+                    <strong>heatmap.html</strong>
+                </li>
+                <li>
+                    <strong>pointmap.html</strong>
+                </li>
+                <li>
+                    <strong>punchcard.php</strong>
+                </li>
+                <li>
+                    <strong>radar-heatmap.php</strong>
+                </li>
+                <li>
+                    <strong>small-routes.php</strong>
+                </li>
+                <li>
+                    <strong>sparklines.php</strong>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <strong>/hrmax/find-hrmax.php</strong><br>
+            <em>Find maximal heart rate in your activity data</em>
+        </li>
+        <li>
+            <strong>/moving-average/moving-average.php</strong><br>
+            <em>Examplary application of moving average to smooth pace plot</em>
+        </li>
+        <li>
+            <strong>/vdot/segment-estimation.php</strong><br>
+            <em>Estimate vdot segment-wise (default: each 100m)</em>
+        </li>
+    </ul>
 {% endblock %}

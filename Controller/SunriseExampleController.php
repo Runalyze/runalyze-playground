@@ -1,17 +1,12 @@
 <?php
+
 namespace Runalyze\Bundle\PlaygroundBundle\Controller;
 
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use DateTime;
 use DateTimeZone;
 use DateInterval;
-/**
- * Class SunriseExampleController
- * @package Runalyze\Bundle\PlaygroundBundle\Controller
- */
+
 class SunriseExampleController extends Controller
 {
     public function sunriseAction()
@@ -30,17 +25,17 @@ class SunriseExampleController extends Controller
         ));
     }
 
-    public function sunriseData(callable $creator) {
-            $Date = new DateTime('NOW', new DateTimeZone('Europe/Berlin'));
-            $OneDay = new DateInterval('P1D');
-            $singleData = array();
+    public function sunriseData(callable $creator)
+    {
+        $Date = new DateTime('NOW', new DateTimeZone('Europe/Berlin'));
+        $OneDay = new DateInterval('P1D');
+        $singleData = array();
 
-            for ($i = 0; $i < 365; ++$i) {
-                $singleData[] = "'date':new Date('".$Date->format('Y-m-d')."'),'value':".$creator($Date);
-                $Date->add($OneDay);
-            }
+        for ($i = 0; $i < 365; ++$i) {
+            $singleData[] = "'date':new Date('".$Date->format('Y-m-d')."'),'value':".$creator($Date);
+            $Date->add($OneDay);
+        }
 
-            return '[{'.implode('},{', $singleData).'}]';
+        return '[{'.implode('},{', $singleData).'}]';
     }
-
 }
