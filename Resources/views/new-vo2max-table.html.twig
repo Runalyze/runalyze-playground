@@ -1,0 +1,134 @@
+{% extends "PlaygroundBundle::base.html.twig" %}
+
+{% block body %}
+    {# @var conf \Runalyze\Bundle\CoreBundle\Component\Configuration\RunalyzeConfigurationList #}
+    {% set conf = config() %}
+
+<table class="zebra-style w100">
+    <thead>
+    <tr>
+        <th>#</th>
+        <th>date</th>
+        <th>km</th>
+        <th>duration</th>
+        <th>pace</th>
+        <th>prev. VO2max</th>
+        <th>new VO2max (median)</th>
+        <th>new VO2max (mean)</th>
+        <th>abs. error</th>
+    </tr>
+    </thead>
+    <tbody>
+        {% for activity in data %}
+        <tr class="r">
+            <td>#{{ activity.row.id }}</td>
+            <td>{{ activity.row.time|date("m/d/Y") }}</td>
+            <td>{{ distance(activity.row.distance) }}</td>
+            <td>{{ activity.row.s|duration }}</td>
+            <td>{{ pace(activity.row.s / activity.row.distance) }}</td>
+            <td>{{ vo2max(activity.row.vo2max_with_elevation, conf) }}</td>
+            <td>{{ vo2max(activity.median, conf) }}</td>
+            <td>{{ vo2max(activity.mean, conf) }}</td>
+            <td>{{ activity.error|number_format(2) }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div id="chart" class="scatterplot d3js" style="text-align:center;"></div>
+
+<style>
+.error-bar path {
+    stroke: #c00;
+    stroke-opacity: .5;
+    stroke-width: 1;
+    stroke-dasharray: 2,6;
+    shape-rendering: crispEdges;
+}
+.vo2max-old circle {
+    fill: #ccc;
+    stroke: none;
+}
+.vo2max-new circle {
+    fill: #0c0;
+    stroke: none;
+}
+</style>
+<script>
+    var data = {{ jsonData|raw }};
+
+    var margin = {top: 20, right: 30, bottom: 60, left: 60}
+        , width = 1200 - margin.left - margin.right
+        , height = 500 - margin.top - margin.bottom;
+
+    var x = d3.scaleLinear()
+        .domain([d3.min(data, function(d) { return d[0]; }), d3.max(data, function(d) { return d[0]; })])
+        .range([ 0, width ])
+        .nice();
+
+    var y = d3.scaleLinear()
+        .domain([d3.min(data, function(d) { return Math.min(d[1], d[2]); }), d3.max(data, function(d) { return Math.max(d[1], d[2]); })])
+        .range([ height, 0 ])
+        .nice();
+
+    var chart = d3.select('#chart')
+        .append('svg:svg')
+        .attr('width', width + margin.right + margin.left)
+        .attr('height', height + margin.top + margin.bottom)
+        .attr('class', 'chart')
+
+    var main = chart.append('g')
+        .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
+        .attr('width', width)
+        .attr('height', height)
+        .attr('class', 'main')
+
+    // draw the x axis
+    var xAxis = d3.axisBottom()
+        .scale(x)
+        .tickFormat(d3.timeFormat("%d.%m.%Y"));
+
+    main.append('g')
+        .attr('transform', 'translate(0,' + height + ')')
+        .attr('class', 'main axis date')
+        .call(xAxis);
+
+    // draw the y axis
+    var yAxis = d3.axisLeft()
+        .scale(y);
+
+    main.append('g')
+        .attr('transform', 'translate(0,0)')
+        .attr('class', 'main axis date')
+        .call(yAxis);
+
+    var g = main.append("svg:g");
+
+    g.append("g").attr("class", "vo2max-old")
+        .selectAll("scatter-dots")
+        .data(data)
+        .enter().append("svg:circle")
+        .attr("cx", function (d,i) { return x(d[0]); } )
+        .attr("cy", function (d) { return y(d[1]); } )
+        .attr("r", 3);
+
+    var errorBarArea = d3.area()
+        .x(function(d) {return x(d[0]); })
+        .y0(function(d) {return y(d[2] - d[3]); })
+        .y1(function(d) {return y(d[2] + d[3]); });
+
+    g.append('g').attr('class', 'error-bar')
+        .selectAll("path")
+        .data(data)
+        .enter().append("path")
+        .attr("d", function(d){return errorBarArea([d]);});
+
+    g.append("g").attr("class", "vo2max-new")
+        .selectAll("scatter-dots-new")
+        .data(data)
+        .enter().append("svg:circle")
+        .attr("cx", function (d,i) { return x(d[0]); } )
+        .attr("cy", function (d) { return y(d[2]); } )
+        .attr("r", 3);
+</script>
+{% endblock %}

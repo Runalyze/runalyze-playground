@@ -6,6 +6,10 @@ playground-hrv-table:
     defaults: { _controller: 'PlaygroundBundle:Hrv:hrvTable' }
     path: /hrv-table
 
+playground-new-vo2max-table:
+    defaults: { _controller: 'PlaygroundBundle:VO2max:newVO2maxTable' }
+    path: /new-vo2max-table
+
 playground-moving-average:
     defaults: { _controller: 'PlaygroundBundle:MovingAverage:movingAverage' }
     path: /moving-average
