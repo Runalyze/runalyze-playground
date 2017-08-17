@@ -16,6 +16,8 @@
         <th>new VO2max (median)</th>
         <th>new VO2max (mean)</th>
         <th>abs. error</th>
+        <th>mad</th>
+        <th>new VO2max (median, no GAP)</th>
     </tr>
     </thead>
     <tbody>
@@ -30,6 +32,8 @@
             <td>{{ vo2max(activity.median, conf) }}</td>
             <td>{{ vo2max(activity.mean, conf) }}</td>
             <td>{{ activity.error|number_format(2) }}</td>
+            <td>{{ activity.mad|number_format(2) }}</td>
+            <td>{{ vo2max(activity.medianNoGap, conf) }}</td>
             </tr>
         {% endfor %}
     </tbody>
@@ -38,6 +42,9 @@
 <div id="chart" class="scatterplot d3js" style="text-align:center;"></div>
 
 <style>
+.error-bar {
+    display: none;
+}
 .error-bar path {
     stroke: #c00;
     stroke-opacity: .5;
@@ -46,89 +53,184 @@
     shape-rendering: crispEdges;
 }
 .vo2max-old circle {
-    fill: #ccc;
+    fill: rgba(255, 0, 0, .5);
     stroke: none;
 }
 .vo2max-new circle {
     fill: #0c0;
     stroke: none;
 }
+path.trend {
+    fill: none;
+    stroke: black;
+    stroke-opacity: 0.5;
+    stroke-width: 2;
+}
+path.trendarea {
+    fill: grey;
+    fill-opacity: 0.2;
+    stroke: none;
+}
+path.marker-line {
+    stroke: #999;
+    stroke-width: 1;
+}
+.label.light {
+    fill: #999;
+    font-size: 9px;
+}
 </style>
 <script>
-    var data = {{ jsonData|raw }};
+    // 0: js-timestamp, 1: old vo2max, 2: new vo2max 3: abs. error
+    // + 4: weight (by abs. error)
+    // + 5: vo2max trend w/o weight
+    // + 6: vo2max trend w weight
+    // + 7: error trend
+    // + 8: error wrt variance of vo2max values (for last 30 days)
+    var data = {{ jsonData|raw }}.reverse();
+    var emaAlpha = 0.5;
 
-    var margin = {top: 20, right: 30, bottom: 60, left: 60}
-        , width = 1200 - margin.left - margin.right
-        , height = 500 - margin.top - margin.bottom;
+    for (var i = 0; i < data.length; ++i) {
+        //data[i][2] *= 1 + 0.0714285714285714 / 2;
+        data[i][4] = 1 / (0.5 + data[i][3]);
+    }
 
-    var x = d3.scaleLinear()
-        .domain([d3.min(data, function(d) { return d[0]; }), d3.max(data, function(d) { return d[0]; })])
-        .range([ 0, width ])
-        .nice();
+    var movingAverage = function (data, indexPos, dataPos, newPos, alpha, deltaFactor) {
+        deltaFactor = deltaFactor || 86400000;
+        tau = - 1 / Math.log(1 - alpha);
+        avg = data[0][dataPos];
+        data[0][newPos] = avg;
 
-    var y = d3.scaleLinear()
-        .domain([d3.min(data, function(d) { return Math.min(d[1], d[2]); }), d3.max(data, function(d) { return Math.max(d[1], d[2]); })])
-        .range([ height, 0 ])
-        .nice();
+        for (var i = 1; i < data.length; ++i) {
+            var deltaT = (data[i][indexPos] - data[i - 1][indexPos]) / deltaFactor;
+            var alpha_ = 1 - Math.exp(-deltaT / tau);
+            avg = alpha_ * data[i][dataPos] + (1 - alpha_) * avg;
+            data[i][newPos] = avg;
+        }
 
-    var chart = d3.select('#chart')
-        .append('svg:svg')
-        .attr('width', width + margin.right + margin.left)
-        .attr('height', height + margin.top + margin.bottom)
-        .attr('class', 'chart')
+        return data;
+    };
 
-    var main = chart.append('g')
-        .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
-        .attr('width', width)
-        .attr('height', height)
-        .attr('class', 'main')
+    var weightedMovingAverage = function (data, indexPos, weightPos, dataPos, newPos, alpha, deltaFactor) {
+        deltaFactor = deltaFactor || 86400000;
+        tau = - 1 / Math.log(1 - alpha);
+        avg = data[0][dataPos] * data[0][weightPos];
+        avgWeight = data[0][weightPos];
+        data[0][newPos] = avg / avgWeight;
 
-    // draw the x axis
-    var xAxis = d3.axisBottom()
-        .scale(x)
-        .tickFormat(d3.timeFormat("%d.%m.%Y"));
+        for (var i = 1; i < data.length; ++i) {
+            var deltaT = (data[i][indexPos] - data[i - 1][indexPos]) / deltaFactor;
+            var alpha_ = 1 - Math.exp(-deltaT / tau);
+            avg = alpha_ * data[i][dataPos] * data[i][weightPos] + (1 - alpha_) * avg;
+            avgWeight = alpha_ * data[i][weightPos] + (1 - alpha_) * avgWeight;
+            data[i][newPos] = avg / avgWeight;
+        }
 
-    main.append('g')
-        .attr('transform', 'translate(0,' + height + ')')
-        .attr('class', 'main axis date')
-        .call(xAxis);
+        return data;
+    };
 
-    // draw the y axis
-    var yAxis = d3.axisLeft()
-        .scale(y);
+    movingAverage(data, 0, 2, 5, emaAlpha);
+    weightedMovingAverage(data, 0, 4, 2, 6, emaAlpha);
+    movingAverage(data, 0, 3, 7, emaAlpha);
 
-    main.append('g')
-        .attr('transform', 'translate(0,0)')
-        .attr('class', 'main axis date')
-        .call(yAxis);
+    for (var i = 0; i < data.length; ++i) {
+        var estimates = [];
+        for (var j = 0; j < data.length; ++j) {
+            if (data[j][0] <= data[i][0] && data[i][0] - data[j][0] <= 30 * 86400000) {
+                estimates.push(data[j][2]);
+            }
+        }
 
-    var g = main.append("svg:g");
+        if (estimates.length > 1) {
+            data[i][8] = d3.variance(estimates) / Math.sqrt(estimates.length);
+        } else {
+            data[i][8] = 5.0;
+        }
+    }
 
-    g.append("g").attr("class", "vo2max-old")
+    var plot = d3.runalyzeplot(data).size(1200, 500);
+
+        plot.margin({top: 20, right: 120, bottom: 60, left: 60});
+        plot.xScale = d3.scaleLinear().range([0, plot.width()]).domain([d3.min(data, function(d) { return d[0]; }), d3.max(data, function(d) { return d[0]; })]).nice(d3.timeMonth);
+        plot.yScale = d3.scaleLinear().range([plot.height(), 0]).domain([d3.min(data, function(d) { return Math.min(d[1], d[2]); }), d3.max(data, function(d) { return Math.max(d[1], d[2]); })]).nice();
+        plot.select("#chart");
+
+        plot.xAxis.tickFormat(d3.timeFormat("%d.%m.%Y"));
+
+        plot.drawAxes();
+        plot.drawYGrid();
+        plot.drawXGrid();
+
+    plot.svg().append("g").attr("class", "vo2max-old")
         .selectAll("scatter-dots")
         .data(data)
         .enter().append("svg:circle")
-        .attr("cx", function (d,i) { return x(d[0]); } )
-        .attr("cy", function (d) { return y(d[1]); } )
-        .attr("r", 3);
+        .attr("cx", plot.xMap)
+        .attr("cy", function (d) { return plot.yScale(d[1]); } )
+        .attr("r", 1);
 
     var errorBarArea = d3.area()
-        .x(function(d) {return x(d[0]); })
-        .y0(function(d) {return y(d[2] - d[3]); })
-        .y1(function(d) {return y(d[2] + d[3]); });
+        .x(plot.xMap)
+        .y0(function(d) {return plot.yScale(d[2] - d[3]); })
+        .y1(function(d) {return plot.yScale(d[2] + d[3]); });
 
-    g.append('g').attr('class', 'error-bar')
+    plot.svg().append('g').attr('class', 'error-bar')
         .selectAll("path")
         .data(data)
         .enter().append("path")
         .attr("d", function(d){return errorBarArea([d]);});
 
-    g.append("g").attr("class", "vo2max-new")
+    plot.svg().append("g").attr("class", "vo2max-new")
         .selectAll("scatter-dots-new")
         .data(data)
         .enter().append("svg:circle")
-        .attr("cx", function (d,i) { return x(d[0]); } )
-        .attr("cy", function (d) { return y(d[2]); } )
+        .attr("cx", plot.xMap)
+        .attr("cy", function (d) { return plot.yScale(d[2]); } )
+        .attr("fill-opacity", function (d) { return d[4]; } )
         .attr("r", 3);
+
+    var trends = plot.svg().append("g").attr("class", "trends");
+
+    var trendline = d3.line()
+        .x(plot.xMap)
+        .y(function(d) { return plot.yScale(d[6]); })
+        .curve(d3.curveBasis);
+
+    trends.append("path").datum(data).attr("class", "trend").attr("d", trendline);
+
+    var trendlineWithError = d3.area()
+        .x(plot.xMap)
+        .y0(function(d) { return plot.yScale(d[6] + d[7] + d[8] / 2); })
+        .y1(function(d) { return plot.yScale(d[6] - d[7] - d[8] / 2); })
+        .curve(d3.curveBasis);
+
+    trends.append("path").datum(data).attr("class", "trendarea").attr("d", trendlineWithError);
+
+    if (data.length >= 2) {
+        var currStateX = plot.width() + 0.5,
+            currStateY = plot.yScale(data[data.length-1][6]) - 0.5,
+            currState = plot.svg().append("g").attr("class", "marker current-state").attr("transform", "translate("+currStateX+","+currStateY+")"),
+            currStateDiff = data[data.length-1][6] - data[data.length-2][6];
+    
+        currState.append("path")
+            .attr("d", d3.line().x(function(d){ return d[0]; }).y(function(d){ return d[1]; })([[0, 0], [16, 0]]))
+            .attr("class", "marker-line");
+        currState.append("text").attr("class", "label light").text("Current VO2max").attr("transform", "translate(18,3)").attr("dy", "-1.2em");
+        currState.append("text").text(data[data.length-1][6].toFixed(2)).attr("transform", "translate(28,3)").attr("font-weight", "bold");
+
+        var triangle = { x: 21, y: 0, deg: 90, fill: 'black'};
+
+        if (currStateDiff > 0.5) {
+            triangle = { x: 22, y: 1, deg: 0, fill: '#0c0'};
+        } else if (currStateDiff < -0.5) {
+            triangle = { x: 22, y: -1, deg: 180, fill: '#c00'};
+        }
+
+        // TODO: comparison vs. last month and vs. last year
+        currState.append('path')
+            .attr('d', d3.symbol().type(d3.symbolTriangle).size(20)([1]))
+            .attr('fill', triangle.fill)
+            .attr('transform', "translate("+triangle.x+","+triangle.y+") rotate("+triangle.deg+")");
+    }
 </script>
 {% endblock %}

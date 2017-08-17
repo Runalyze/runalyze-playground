@@ -1,0 +1,224 @@
+{% extends "PlaygroundBundle::base.html.twig" %}
+
+{% block body %}
+    {# @var conf \Runalyze\Bundle\CoreBundle\Component\Configuration\RunalyzeConfigurationList #}
+    {% set conf = config() %}
+
+    <table>
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>date</th>
+            <th>km</th>
+            <th>duration</th>
+            <th>pace</th>
+            <th>prev. VO2max</th>
+        </tr>
+        </thead>
+        <tbody>
+            <tr class="r">
+                <td>#{{ context.activity.id }}</td>
+                <td>{{ context.activity.time|date("m/d/Y") }}</td>
+                <td>{{ distance(context.activity.distance) }}</td>
+                <td>{{ context.activity.s|duration }}</td>
+                <td>{{ pace(context.activity.s / context.activity.distance, context.sport.speedUnit) }}</td>
+                <td>{{ vo2max(context.activity.vo2maxWithElevation, conf) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div style="width:900px;margin-left:auto;margin-right:auto;">
+        <div id="activity-charts">
+            <div id="estimation-method-chooser" style="text-align:center;">
+                <label>
+                    <input id="estimation-method-totalPace" type="radio" name="estimation-method" value="totalPace"> 
+                    Total pace <em>(no GAP)</em>
+                </label>
+                &nbsp;
+                <label>
+                    <input id="estimation-method-avgPace" type="radio" name="estimation-method" value="avgPace"> 
+                    Avg. pace <em>(no GAP)</em>
+                </label>
+                &nbsp;
+                <label>
+                    <input id="estimation-method-gap" type="radio" name="estimation-method" value="gap"> 
+                    GAP <em>(via total elev. diff.)</em>
+                </label>
+                &nbsp;
+                <label>
+                    <input id="estimation-method-avgGap" type="radio" name="estimation-method" value="avgGap" checked> 
+                    Avg. GAP
+                </label>
+                &nbsp;
+                <label>
+                    <input id="estimation-method-avgGradient" type="radio" name="estimation-method" value="avgGradient"> 
+                    Avg. Gradient factor
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <style>
+.heartrate {
+    fill: none;
+    stroke: rgb(136, 0, 0);
+    stroke-width: 2px;
+}
+.pace {
+    fill: none;
+    stroke: rgb(0, 0, 136);
+    stroke-width: 2px;
+}
+.pace.gap {
+    stroke: rgb(0, 136, 0);
+}
+.grade {
+    fill: none;
+    stroke: rgb(0, 0, 0);
+    stroke-width: 2px;
+}
+    </style>
+
+    <script>
+        var $charts = $("#activity-charts");
+        var segments = {{ segments|json_encode }};
+        var stream = {{ stream|json_encode|raw }};
+        var estimates = {{ estimates|json_encode|raw }};
+        var streamD3 = [];
+        var streamEstimates = [];
+
+        for (var i = 0; i < stream.time.length; ++i) {
+            streamD3[i] = {
+                'time': stream.time[i],
+                'dist': stream.dist[i],
+                'hr': stream.hr[i],
+                'elev': stream.elev[i],
+                'pace': stream.pace[i],
+                'gap': stream.gap[i],
+                'gapFactor': stream.gapFactor[i],
+                'gradient': stream.gradient[i],
+                'estimates': {
+                }
+            };
+        }
+
+        for (var i = 0; i < segments.length; ++i) {
+            streamEstimates[i] = {
+                'time': stream.time[segments[i][1]],
+                'dist': (stream.dist[segments[i][1]] + stream.dist[segments[i][0]]) / 2,
+                'totalPace': estimates.totalPace[i],
+                'avgPace': estimates.avgPace[i],
+                'gap': estimates.gap[i],
+                'avgGap': estimates.avgGap[i],
+                'avgGradient': estimates.avgGradient[i]
+            };
+        }
+
+        function markSegments(plot) {
+            return plot.plotArea().append("g").attr("class", "segments").selectAll("rect")
+            	.data(segments)
+            	.enter()
+            	.append("rect")
+            	.attr("x", function(d) { return plot.xScale(stream.dist[d[0]]); })
+            	.attr("y", function(d) { return 0; })
+            	.attr("width", function(d) { return plot.xScale(stream.dist[d[1]]) - plot.xScale(stream.dist[d[0]]); })
+            	.attr("height", function(d) { return plot.height(); })
+            	.attr("fill", function(d) { return stream.time[d[1]] > {{ settings.skipAfter }} || stream.time[d[1]] < {{ settings.skipBefore }} ? "rgba(127,127,127,.25)" : "rgba(127,127,127,.5)"; });
+        }
+
+        $charts.append('<div id="activity-chart-vo2max"></div>');
+        var plotVO2max = d3.runalyzeplot(streamEstimates).size(900, 200);
+        plotVO2max.xValue = function(d) { return d.dist; };
+        plotVO2max.yValue = function(d) { return d.avgGap; };
+        plotVO2max.xScale = d3.scaleLinear().range([0, plotVO2max.width()]).domain([stream.dist[0], stream.dist[stream.dist.length - 1]]);
+        plotVO2max.yScale = d3.scaleLinear().range([plotVO2max.height(), 0]).domain([
+            d3.min(streamEstimates, function(d) { return Math.min(d.totalPace, d.avgPace, d.gap, d.avgGap, d.avgGradient); }) - 0.5,
+            d3.max(streamEstimates, function(d) { return Math.max(d.totalPace, d.avgPace, d.gap, d.avgGap, d.avgGradient); }) + 0.5,
+        ]).nice();
+        plotVO2max.select("#activity-chart-vo2max");
+        plotVO2max.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+        plotVO2max.drawAxes();
+        plotVO2max.drawYGrid();
+        plotVO2max.drawXGrid();
+
+        let estimateTypes = ['totalPace', 'avgPace', 'gap', 'avgGap', 'avgGradient'];
+        for (let i = 0; i < estimateTypes.length; ++i) {
+            plotVO2max.plotArea().append("g").attr("class", "estimates "+estimateTypes[i]).selectAll("circle").data(streamEstimates).enter().append("circle").attr("cx", plotVO2max.xMap).attr("cy", function(d){
+                return plotVO2max.yScale(d[estimateTypes[i]]);
+            }).attr("r", 3).attr("fill", function(d) { return d.time > {{ settings.skipAfter }} || d.time < {{ settings.skipBefore }} ? "rgba(0,0,0,.25)" : "black"; });
+        }
+
+        $("#estimation-method-chooser").bind('click', function(){
+            $("#activity-chart-vo2max .estimates").hide();
+            $("#activity-chart-vo2max .estimates."+$(this).find('input:checked').val()).show();
+        });
+        $("#estimation-method-chooser").trigger('click');
+
+        $charts.append('<div id="activity-chart-hr"></div>');
+        var plotHr = d3.runalyzeplot(streamD3).size(900, 200);
+        plotHr.xValue = function(d) { return d.dist; };
+        plotHr.yValue = function(d) { return d.hr; };
+        plotHr.select("#activity-chart-hr");
+        plotHr.yAxis.tickFormat(function(v){ return v+" bpm";});
+        plotHr.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+        plotHr.drawAxes();
+        plotHr.drawYGrid();
+        plotHr.drawXGrid();
+        markSegments(plotHr);
+        plotHr.drawLine(null, "heartrate");
+
+        $charts.append('<div id="activity-chart-pace"></div>');
+        var plotPace = d3.runalyzeplot(streamD3).size(900, 200);
+        plotPace.xValue = function(d) { return d.dist; };
+        plotPace.yValue = function(d) { return d.pace; };
+        plotPace.yScale = d3.scaleLinear().range([0, plotPace.height()]).domain([d3.min(streamD3, plotPace.yValue), d3.max(streamD3, plotPace.yValue)]);
+        plotPace.select("#activity-chart-pace");
+        plotPace.yAxis.tickFormat(function(v){ return Math.floor(Math.round(v)/60) + ':' + (Math.round(v)%60 < 10 ? '0' : '') + Math.round(v)%60 + '/km';});
+        plotPace.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+        plotPace.drawAxes();
+        plotPace.drawYGrid();
+        plotPace.drawXGrid();
+        markSegments(plotPace);
+        plotPace.drawLine(null, "pace");
+
+        $charts.append('<div id="activity-chart-gap"></div>');
+        var plotGap = d3.runalyzeplot(streamD3).size(900, 200);
+        plotGap.xValue = function(d) { return d.dist; };
+        plotGap.yValue = function(d) { return d.gap; };
+        plotGap.yScale = d3.scaleLinear().range([0, plotPace.height()]).domain([d3.min(streamD3, plotGap.yValue), d3.max(streamD3, plotGap.yValue)]);
+        plotGap.select("#activity-chart-gap");
+        plotGap.yAxis.tickFormat(function(v){ return Math.floor(Math.round(v)/60) + ':' + (Math.round(v)%60 < 10 ? '0' : '') + Math.round(v)%60 + '/km';});
+        plotGap.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+        plotGap.drawAxes();
+        plotGap.drawYGrid();
+        plotGap.drawXGrid();
+        markSegments(plotGap);
+        plotGap.drawLine(null, "pace gap");
+
+        $charts.append('<div id="activity-chart-elev"></div>');
+        var plotElev = d3.runalyzeplot(streamD3).size(900, 200);
+        plotElev.xValue = function(d) { return d.dist; };
+        plotElev.yValue = function(d) { return d.elev; };
+        plotElev.select("#activity-chart-elev");
+        plotElev.yAxis.tickFormat(function(v){ return v+" m";});
+        plotElev.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+        plotElev.drawAxes();
+        plotElev.drawYGrid();
+        plotElev.drawXGrid();
+        markSegments(plotElev);
+        plotElev.drawArea(null, "elevation");
+
+        $charts.append('<div id="activity-chart-grade"></div>');
+        var plotGrade = d3.runalyzeplot(streamD3).size(900, 200);
+        plotGrade.xValue = function(d) { return d.dist; };
+        plotGrade.yValue = function(d) { return d.gradient; };
+        plotGrade.select("#activity-chart-grade");
+        plotGrade.yAxis.tickFormat(function(v){ return v.toFixed(1)+" %";});
+        plotGrade.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+        plotGrade.drawAxes();
+        plotGrade.drawYGrid();
+        plotGrade.drawXGrid();
+        markSegments(plotGrade);
+        plotGrade.drawArea(null, "grade");
+    </script>
+{% endblock %}

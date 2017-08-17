@@ -2,15 +2,155 @@
 
 namespace Runalyze\Bundle\PlaygroundBundle\Controller;
 
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\Request;
 use Runalyze\Calculation;
 use Runalyze\Bundle\CoreBundle\Entity\Account;
+use Runalyze\Bundle\CoreBundle\Entity\Training;
 use Runalyze\Model;
 
 class VO2maxController extends Controller
 {
+    /**
+     * @Security("has_role('ROLE_USER')")
+     * @ParamConverter("activity", class="CoreBundle:Training")
+     */
+    public function newVO2maxActivityAction(Training $activity, Account $account, Request $request)
+    {
+        $activityContext = $this->get('app.activity_context.factory')->getContext($activity);
+        $correctionFactor = $this->get('app.configuration_manager')->getList()->getVO2maxCorrectionFactor();
+
+        if (!$activityContext->hasTrackdata() || !$activityContext->getTrackdata()->hasTime() || !$activityContext->getTrackdata()->hasDistance() || !$activityContext->getTrackdata()->hasHeartrate() || !$activityContext->getSport()->getInternalSport()->isRunning()) {
+            return $this->render('PlaygroundBundle::error.html.twig', [
+                'message' => 'This activity is not feasible for VO2max calculation.'
+            ]);
+        }
+
+        $legacyTrackdata = $activityContext->getTrackdata()->getLegacyModel();
+        $legacyRoute = new \Runalyze\Model\Route\Entity(!$activityContext->hasRoute() ? [] : [
+            \Runalyze\Model\Route\Entity::ELEVATIONS_CORRECTED => $activityContext->getRoute()->getElevationsCorrected(),
+            \Runalyze\Model\Route\Entity::ELEVATIONS_ORIGINAL => $activityContext->getRoute()->getElevationsOriginal()
+        ]);
+
+        $skipFirstSeconds = $request->query->getInt('skip', 360);
+
+        $pace = $legacyTrackdata->get(\Runalyze\Model\Trackdata\Entity::PACE);
+        $dist = $activityContext->getTrackdata()->getDistance();
+        $hr = $activityContext->getTrackdata()->getHeartrate();
+        $time = $activityContext->getTrackdata()->getTime();
+        $trackdataNum = count($time);
+        $elev = $activityContext->hasRoute() && $activityContext->getRoute()->hasElevations() ? $activityContext->getRoute()->getElevations() : array_fill(0, $trackdataNum, 0);
+        $hrMax = \Runalyze\Configuration::Data()->HRmax();
+
+        $timeFactor = [];
+        $gap = $pace;
+        $timeFactor = array_fill(0, $trackdataNum, 1.0);
+        $algorithm = new \Runalyze\Sports\Running\GradeAdjustedPace\Algorithm\Minetti();
+
+        if ($legacyRoute->hasElevations()) {
+            $gradientCalc = new \Runalyze\Calculation\Route\Gradient();
+            $gradientCalc->setDataFrom($legacyRoute, $legacyTrackdata);
+            $gradientCalc->setMovingAverageKernel(new \Runalyze\Calculation\Math\MovingAverage\Kernel\Uniform(20));
+            $gradientCalc->calculate();
+            $gradient = $gradientCalc->getSeries();
+
+            foreach (array_keys($gap) as $i) {
+                $timeFactor[$i] = $algorithm->getTimeFactor($gradient[$i] / 100.0);
+                $gap[$i] *= $timeFactor[$i];
+            }
+        } else {
+            $gradient = array_fill(0, $trackdata->num(), 0.0);
+        }
+
+        $finder = new \Runalyze\Mathematics\DataAnalysis\ConstantSegmentFinder($hr, $time);
+        $finder->setMinimumIndexDiff($request->query->getInt('minTimeDelta', 30));
+        $finder->setMaximumIndexDiff($request->query->getInt('maxTimeDelta', 30));
+        $finder->setConstantDelta($request->query->getInt('hrDelta', 2));
+        $segments = $finder->findConstantSegments();
+
+        $allEstimates = [];
+        $avgEstimates = [];
+        $gapEstimates = [];
+        $avgGapEstimates = [];
+        $avgGradientEstimates = [];
+        $vo2maxEstimate = new \Runalyze\Calculation\JD\LegacyEffectiveVO2max();
+        //$vo2maxEstimate->setCorrector(new \Runalyze\Calculation\JD\LegacyEffectiveVO2maxCorrector());
+
+        foreach ($segments as $i => $segment) {
+            $hrAvg = array_sum(array_slice($hr, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
+            $distDelta = $dist[$segment[1]] - $dist[$segment[0]];
+            $timeDelta = $time[$segment[1]] - $time[$segment[0]];
+            $elevDelta = $elev[$segment[1]] - $elev[$segment[0]];
+
+            $vo2maxEstimate->fromPaceAndHR($distDelta, $timeDelta, $hrAvg / $hrMax);
+            $estimate = $vo2maxEstimate->value();
+
+            $allEstimates[] = $correctionFactor * $estimate;
+
+            if ($time[$segment[1]] < 1200) {
+                $lastValidSegmentIndex = $i;
+            }
+
+            $avgPace = array_sum(array_slice($pace, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
+            $avgGap = array_sum(array_slice($gap, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
+            $avgGradient = array_sum(array_slice($gradient, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
+            $avgGapFactor = array_sum(array_slice($timeFactor, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
+
+            $vo2maxEstimate->fromPaceAndHR(1.0, $avgPace, $hrAvg / $hrMax);
+            $avgEstimate = $vo2maxEstimate->value();
+            $avgEstimates[] = $correctionFactor * $avgEstimate;
+
+            $vo2maxEstimate->fromPaceAndHR($distDelta, $timeDelta * $algorithm->getTimeFactor($distDelta > 0 ? $elevDelta / 1000 / $distDelta : 0.0), $hrAvg / $hrMax);
+            $gapEstimate = $vo2maxEstimate->value();
+            $gapEstimates[] = $correctionFactor * $gapEstimate;
+
+            //$vo2maxEstimate->fromPaceAndHR(1.0, $avgGap, $hrAvg / $hrMax);
+            $vo2maxEstimate->fromPaceAndHR($distDelta, $timeDelta * $avgGapFactor, $hrAvg / $hrMax);
+            $avgGapEstimate = $vo2maxEstimate->value();
+            $avgGapEstimates[] = $correctionFactor * $avgGapEstimate;
+
+            $vo2maxEstimate->fromPaceAndHR($distDelta, $timeDelta * $algorithm->getTimeFactor($avgGradient / 100.0), $hrAvg / $hrMax);
+            $avgGradientEstimate = $vo2maxEstimate->value();
+            $avgGradientEstimates[] = $correctionFactor * $avgGradientEstimate;
+
+            /*echo \Runalyze\Activity\Duration::format($time[$segment[0]]).' - '.\Runalyze\Activity\Duration::format($time[$segment[1]]).': ca. '.round($hrAvg).' bpm = '.$estimate;
+
+            echo ', pace: '.round($timeDelta / $distDelta).' vs. avg. '.round($avgPace).' (= '.$avgEstimate.')';
+            echo ', gap at '.number_format($elevDelta / 10 / $distDelta, 2).': '.round($timeDelta / $distDelta * $algorithm->getTimeFactor($elevDelta / 1000 / $distDelta)).' (= <strong>'.$gapEstimate.'</strong>) vs. avg. '.round($avgGap).' (= '.$avgGapEstimate.') or avg. grad. '.number_format($avgGradient, 1).' (= '.$avgGradientEstimate.')';
+
+            echo '<br>';*/
+        }
+
+        return $this->render('PlaygroundBundle::new-vo2max.html.twig', array(
+            'context' => $activityContext,
+            'segments' => $segments,
+            'estimates' => [
+                'totalPace' => $allEstimates,
+                'avgPace' => $avgEstimates,
+                'gap' => $gapEstimates,
+                'avgGap' => $avgGapEstimates,
+                'avgGradient' => $avgGradientEstimates
+            ],
+            'settings' => [
+                'skipBefore' => $skipFirstSeconds,
+                'skipAfter' => 1200
+            ],
+            'athlete' => ['hrMax' => $hrMax],
+            'stream' => [
+                'time' => $time,
+                'dist' => $dist,
+                'elev' => $elev,
+                'hr' => $hr,
+                'pace' => $pace,
+                'gap' => $gap,
+                'gapFactor' => $timeFactor,
+                'gradient' => $gradient
+            ]
+        ));
+    }
+
     /**
      * @Security("has_role('ROLE_USER')")
      */
@@ -41,9 +181,12 @@ class VO2maxController extends Controller
                 `t`.`time` IS NOT NULL AND
                 `t`.`distance` IS NOT NULL AND
                 `t`.`heartrate` IS NOT NULL AND
-                `a`.`s` > '.$request->query->getInt('minTime', 1200).'
+                `a`.`use_vo2max` = 1 AND
+                `a`.`s` > '.$request->query->getInt('minTime', 720).'
             ORDER BY `a`.`time` DESC LIMIT '.$request->query->getInt('limit', 100);
 
+        $useMad = $request->query->get('error', 'mad') == 'mad';
+        $skipFirstSeconds = $request->query->getInt('skip', 360);
         $stmt = $this->getDoctrine()->getManager()->getConnection()->prepare($sql);
         $stmt->execute();
 
@@ -54,7 +197,7 @@ class VO2maxController extends Controller
                 \Runalyze\Model\Trackdata\Entity::HEARTRATE => $row['tr_heartrate'],
             ]);
             $route = new \Runalyze\Model\Route\Entity([
-                \Runalyze\Model\Route\Entity::ELEVATIONS_ORIGINAL => $row['elevations_corrected'],
+                \Runalyze\Model\Route\Entity::ELEVATIONS_CORRECTED => $row['elevations_corrected'],
                 \Runalyze\Model\Route\Entity::ELEVATIONS_ORIGINAL => $row['elevations_original']
             ]);
 
@@ -72,7 +215,7 @@ class VO2maxController extends Controller
             $finder = new \Runalyze\Mathematics\DataAnalysis\ConstantSegmentFinder($hr, $time);
             $finder->setMinimumIndexDiff($request->query->getInt('minTimeDelta', 30));
             $finder->setMaximumIndexDiff($request->query->getInt('maxTimeDelta', 30));
-            $finder->setConstantDelta($request->query->getInt('hrDelta', 3));
+            $finder->setConstantDelta($request->query->getInt('hrDelta', 2));
             $segments = $finder->findConstantSegments();
             $lastValidSegmentIndex = -1;
             $allEstimates = [];
@@ -82,6 +225,7 @@ class VO2maxController extends Controller
             $avgGradientEstimates = [];
 
             $gap = $pace;
+            $timeFactor = array_fill(0, $trackdata->num(), 1.0);
             $algorithm = new \Runalyze\Sports\Running\GradeAdjustedPace\Algorithm\Minetti();
 
             if ($route->hasElevations()) {
@@ -92,7 +236,8 @@ class VO2maxController extends Controller
                 $gradient = $gradientCalc->getSeries();
 
                 foreach (array_keys($gap) as $i) {
-                    $gap[$i] *= $algorithm->getTimeFactor($gradient[$i] / 100.0);
+                    $timeFactor[$i] = $algorithm->getTimeFactor($gradient[$i] / 100.0);
+                    $gap[$i] *= $timeFactor[$i];
                 }
             } else {
                 $gradient = array_fill(0, $trackdata->num(), 0.0);
@@ -107,8 +252,17 @@ class VO2maxController extends Controller
                 $timeDelta = $time[$segment[1]] - $time[$segment[0]];
                 $elevDelta = $elev[$segment[1]] - $elev[$segment[0]];
 
+                if ($distDelta <= 0.0) {
+                    continue;
+                }
+
                 $vo2maxEstimate->fromPaceAndHR($distDelta, $timeDelta, $hrAvg / $hrMax);
                 $estimate = $vo2maxEstimate->value();
+
+                if ($estimate < 10.0 || $time[$segment[0]] <= $skipFirstSeconds) {
+                    continue;
+                }
+
                 $allEstimates[] = $estimate;
 
                 if ($time[$segment[1]] < 1200) {
@@ -118,6 +272,7 @@ class VO2maxController extends Controller
                 $avgPace = array_sum(array_slice($pace, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
                 $avgGap = array_sum(array_slice($gap, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
                 $avgGradient = array_sum(array_slice($gradient, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
+                $avgGapFactor = array_sum(array_slice($timeFactor, $segment[0], $segment[1] - $segment[0])) / ($segment[1] - $segment[0]);
 
                 $vo2maxEstimate->fromPaceAndHR(1.0, $avgPace, $hrAvg / $hrMax);
                 $avgEstimate = $vo2maxEstimate->value();
@@ -127,7 +282,8 @@ class VO2maxController extends Controller
                 $gapEstimate = $vo2maxEstimate->value();
                 $gapEstimates[] = $gapEstimate;
 
-                $vo2maxEstimate->fromPaceAndHR(1.0, $avgGap, $hrAvg / $hrMax);
+                //$vo2maxEstimate->fromPaceAndHR(1.0, $avgGap, $hrAvg / $hrMax);
+                $vo2maxEstimate->fromPaceAndHR($distDelta, $timeDelta * $avgGapFactor, $hrAvg / $hrMax);
                 $avgGapEstimate = $vo2maxEstimate->value();
                 $avgGapEstimates[] = $avgGapEstimate;
 
@@ -158,12 +314,14 @@ class VO2maxController extends Controller
                 // ...
             }*/
 
+            //$estimates = array_slice($gapEstimates, 0, 1 + $lastValidSegmentIndex);
             $estimates = array_slice($avgGapEstimates, 0, 1 + $lastValidSegmentIndex);
+            $estimatesNoGap = array_slice($allEstimates, 0, 1 + $lastValidSegmentIndex);
 
             $numEstimates = count($estimates);
 
             if ($numEstimates > 0) {
-                $mean = array_sum($estimates) / count($estimates);
+                $mean = array_sum($estimates) / $numEstimates;
 
                 $middle_index = (int)floor($numEstimates / 2);
                 sort($estimates, SORT_NUMERIC);
@@ -176,12 +334,30 @@ class VO2maxController extends Controller
                         return pow($v - $mean, 2);
                     }, $estimates)) / ($numEstimates - 1));
 
+                sort($estimatesNoGap, SORT_NUMERIC);
+                $medianNoGap = $estimatesNoGap[$middle_index];
+                if ($numEstimates % 2 == 0) {
+                    $medianNoGap = ($medianNoGap + $estimatesNoGap[$middle_index - 1]) / 2;
+                }
+
+                $medianDev = array_map(function($v) use ($median) {
+                    return abs($v - $median);
+                }, $estimates);
+                sort($medianDev, SORT_NUMERIC);
+                $mad = $medianDev[$middle_index];
+                if ($numEstimates % 2 == 0) {
+                    $mad = ($mad + $medianDev[$middle_index - 1]) / 2;
+                }
+
                 /*echo $name.': ';
                 echo 'mean = '.number_format($mean, 2);
                 echo ', median = '.number_format($median, 2);
                 echo ', std = '.number_format($std, 2);
                 echo ', err = '.number_format($std / sqrt($numEstimates), 2);
                 echo '<br>';*/
+
+                $error = $std / sqrt($numEstimates);
+                $errorMad = $mad / sqrt($numEstimates);
 
                 $data[] = [
                     'row' => [
@@ -193,10 +369,12 @@ class VO2maxController extends Controller
                     ],
                     'median' => $median,
                     'mean' => $mean,
-                    'error' => $std / sqrt($numEstimates)
+                    'medianNoGap' => $medianNoGap,
+                    'error' => $error,
+                    'mad' => $errorMad
                 ];
 
-                $jsonData[] = [(string)$row['time'].'000', $correctionFactor * $row['vo2max_with_elevation'], $correctionFactor * $median, $correctionFactor * $std / sqrt($numEstimates)];
+                $jsonData[] = [(string)$row['time'].'000', $correctionFactor * $row['vo2max_with_elevation'], $correctionFactor * $median, $correctionFactor * ($useMad ? $errorMad : $error)];
             }
         }
 

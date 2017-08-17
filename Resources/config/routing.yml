@@ -6,6 +6,12 @@ playground-hrv-table:
     defaults: { _controller: 'PlaygroundBundle:Hrv:hrvTable' }
     path: /hrv-table
 
+playground-new-vo2max-activity:
+    defaults: { _controller: 'PlaygroundBundle:VO2max:newVO2maxActivity' }
+    path: /new-vo2max/{id}
+    requirements:
+        id: '\d+'
+
 playground-new-vo2max-table:
     defaults: { _controller: 'PlaygroundBundle:VO2max:newVO2maxTable' }
     path: /new-vo2max-table
