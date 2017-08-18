@@ -55,6 +55,20 @@
                     Avg. Gradient factor
                 </label>
             </div>
+            <div style="text-align: center;">
+                <em>Further settings:</em> &nbsp;
+                Delta [s] <span class="mono">delta={{ settings.delta }}</span> &nbsp;
+                Begin [s] <span class="mono">skip={{ settings.skipBefore }}</span> &nbsp;
+                End [s] <span class="mono">end={{ settings.skipAfter }}</span> &nbsp;
+                Butterworth frequency <span class="mono">ff={{ settings.butterworthFF }}</span>
+            </div>
+            <div id="estimation-results" class="c margin-top"></div>
+            <div id="activity-chart-vo2max"></div>
+            <div style="text-align: center; font-style: italic;">
+                Remember: There are many factors that may influence estimation results and can't be taken into account.
+                Wind, temperature, running efficiency (e.g. vertical oscillation), soil condition, ...
+                It's okay if some values are off, median and mad are robust statistics that will ignore these outliers.
+            </div>
         </div>
     </div>
 
@@ -80,6 +94,48 @@
     </style>
 
     <script>
+        if (!String.prototype.format) {
+          String.prototype.format = function() {
+            var args = arguments;
+            return this.replace(/{(\d+)}/g, function(match, number) { 
+              return typeof args[number] != 'undefined'
+                ? args[number]
+                : match
+              ;
+            });
+          };
+        }
+
+        /* @see https://github.com/mljs/regression-theil-sen/blob/master/src/index.js */
+        function theilSenRegression(x, y) {
+            let len = x.length;
+            let slopes = new Array(len * len);
+            let count = 0;
+            for (let i = 0; i < len; ++i) {
+                for (let j = i + 1; j < len; ++j) {
+                    if (x[i] !== x[j]) {
+                        slopes[count++] = (y[j] - y[i]) / (x[j] - x[i]);
+                    }
+                }
+            }
+            slopes.length = count;
+            let medianSlope = d3.median(slopes);
+
+            let cuts = new Array(len);
+            for (let i = 0; i < len; ++i) {
+                cuts[i] = y[i] - medianSlope * x[i];
+            }
+
+            let medianCut = d3.median(cuts);
+
+            return {
+                'slope': medianSlope,
+                'intercept': medianCut,
+                'coefficients': [medianCut, medianSlope]
+            };
+        }
+
+
         var $charts = $("#activity-charts");
         var segments = {{ segments|json_encode }};
         var stream = {{ stream|json_encode|raw }};
@@ -93,6 +149,7 @@
                 'dist': stream.dist[i],
                 'hr': stream.hr[i],
                 'elev': stream.elev[i],
+                'elevButterworth': stream.elevButterworth[i],
                 'pace': stream.pace[i],
                 'gap': stream.gap[i],
                 'gapFactor': stream.gapFactor[i],
@@ -126,7 +183,7 @@
             	.attr("fill", function(d) { return stream.time[d[1]] > {{ settings.skipAfter }} || stream.time[d[1]] < {{ settings.skipBefore }} ? "rgba(127,127,127,.25)" : "rgba(127,127,127,.5)"; });
         }
 
-        $charts.append('<div id="activity-chart-vo2max"></div>');
+        //$charts.append('<div id="activity-chart-vo2max"></div>');
         var plotVO2max = d3.runalyzeplot(streamEstimates).size(900, 200);
         plotVO2max.xValue = function(d) { return d.dist; };
         plotVO2max.yValue = function(d) { return d.avgGap; };
@@ -143,14 +200,48 @@
 
         let estimateTypes = ['totalPace', 'avgPace', 'gap', 'avgGap', 'avgGradient'];
         for (let i = 0; i < estimateTypes.length; ++i) {
+            let estimatesTrend = regression('linear', streamEstimates.map(function(d) { return [d.dist, d[estimateTypes[i]]]; }));
+            let estimatesTrendTS = theilSenRegression(streamEstimates.map(function(d) { return d.dist; }), streamEstimates.map(function(d) { return d[estimateTypes[i]]; }));
+            plotVO2max.plotArea().append("g").attr("class", "estimates-trend "+estimateTypes[i]).append("line")
+                .attr("x1", plotVO2max.xScale(estimatesTrend.points[0][0])).attr("y1", plotVO2max.yScale(estimatesTrendTS.intercept + estimatesTrendTS.slope * estimatesTrend.points[0][0]))
+                .attr("x2", plotVO2max.xScale(estimatesTrend.points[estimatesTrend.points.length - 1][0])).attr("y2", plotVO2max.yScale(estimatesTrendTS.intercept + estimatesTrendTS.slope * estimatesTrend.points[estimatesTrend.points.length - 1][0]))
+                .style("stroke", "blue").style("stroke-opacity", "0.5").style("stroke-width", "1");
+            plotVO2max.plotArea().append("g").attr("class", "estimates-trend "+estimateTypes[i]).append("line")
+                .attr("x1", plotVO2max.xScale(estimatesTrend.points[0][0])).attr("y1", plotVO2max.yScale(estimatesTrend.points[0][1]))
+                .attr("x2", plotVO2max.xScale(estimatesTrend.points[estimatesTrend.points.length - 1][0])).attr("y2", plotVO2max.yScale(estimatesTrend.points[estimatesTrend.points.length - 1][1]))
+                .style("stroke", "black").style("stroke-opacity", "0.5").style("stroke-width", "2");
+
             plotVO2max.plotArea().append("g").attr("class", "estimates "+estimateTypes[i]).selectAll("circle").data(streamEstimates).enter().append("circle").attr("cx", plotVO2max.xMap).attr("cy", function(d){
                 return plotVO2max.yScale(d[estimateTypes[i]]);
             }).attr("r", 3).attr("fill", function(d) { return d.time > {{ settings.skipAfter }} || d.time < {{ settings.skipBefore }} ? "rgba(0,0,0,.25)" : "black"; });
+
+            let relevantEstimates = streamEstimates.filter(function(d) { return d.time <= {{ settings.skipAfter }} && d.time >= {{ settings.skipBefore }}; });
+            let relevantEstimatesMedian = d3.median(relevantEstimates, function(d) { return d[estimateTypes[i]]; });
+            let streamEstimatesMedian = d3.median(streamEstimates, function(d) { return d[estimateTypes[i]]; });
+            let relevantEstimatesMedianDiff = relevantEstimates.map(function(d) { return Math.abs(d[estimateTypes[i]] - relevantEstimatesMedian); });
+            let streamEstimatesMedianDiff = streamEstimates.map(function(d) { return Math.abs(d[estimateTypes[i]] - streamEstimatesMedian); });
+
+            $("#estimation-results").append('<div class="details '+estimateTypes[i]+'">Mean: {0} (<em>for all: {1}</em>) &nbsp; Median: <strong>{2}</strong> (<em>for all: {3}</em>) &nbsp; Abs. error: {4} (<em>for all: {5}</em>) &nbsp; MAD error: <strong>{6}</strong> (<em>for all: {7}</em>)<br>Trendline: {8} (r^2 = {9})</div>'.format(
+                d3.mean(relevantEstimates, function(d) { return d[estimateTypes[i]]; }).toFixed(2),
+                d3.mean(streamEstimates, function(d) { return d[estimateTypes[i]]; }).toFixed(2),
+                relevantEstimatesMedian.toFixed(2),
+                streamEstimatesMedian.toFixed(2),
+                (d3.deviation(relevantEstimates, function(d) { return d[estimateTypes[i]]; }) / Math.sqrt(relevantEstimates.length)).toFixed(2),
+                (d3.deviation(streamEstimates, function(d) { return d[estimateTypes[i]]; }) / Math.sqrt(streamEstimates.length)).toFixed(2),
+                (d3.median(relevantEstimatesMedianDiff) / Math.sqrt(relevantEstimates.length)).toFixed(2),
+                (d3.median(streamEstimatesMedianDiff) / Math.sqrt(streamEstimates.length)).toFixed(2),
+                estimatesTrend.string,
+                estimatesTrend.r2.toFixed(4)
+            ));
         }
 
         $("#estimation-method-chooser").bind('click', function(){
             $("#activity-chart-vo2max .estimates").hide();
             $("#activity-chart-vo2max .estimates."+$(this).find('input:checked').val()).show();
+            $("#activity-chart-vo2max .estimates-trend").hide();
+            $("#activity-chart-vo2max .estimates-trend."+$(this).find('input:checked').val()).show();
+            $("#estimation-results .details").hide();
+            $("#estimation-results .details."+$(this).find('input:checked').val()).show();
         });
         $("#estimation-method-chooser").trigger('click');
 
@@ -208,6 +299,22 @@
         markSegments(plotElev);
         plotElev.drawArea(null, "elevation");
 
+        $charts.append('<div id="activity-chart-elevButterworth"><em>Elevation profile after applying Butterworth filter:</em></div>');
+        if ({{ settings.butterworthFF }} <= 0.25) {
+            var plotElevButterworth = d3.runalyzeplot(streamD3).size(900, 200);
+            plotElevButterworth.xValue = function(d) { return d.dist; };
+            plotElevButterworth.yValue = function(d) { return d.elevButterworth; };
+            plotElevButterworth.select("#activity-chart-elevButterworth");
+            plotElevButterworth.yAxis.tickFormat(function(v){ return v+" m";});
+            plotElevButterworth.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+            plotElevButterworth.drawAxes();
+            plotElevButterworth.drawYGrid();
+            plotElevButterworth.drawXGrid();
+            plotElevButterworth.drawArea(null, "elevation");
+        } else {
+            $("#activity-chart-elevButterworth").append(' Not available! Butterworth frequency <span class="mono">ff</span> must be <span class="mono">&leq; 0.25</span>.');
+        }
+
         $charts.append('<div id="activity-chart-grade"></div>');
         var plotGrade = d3.runalyzeplot(streamD3).size(900, 200);
         plotGrade.xValue = function(d) { return d.dist; };
@@ -219,6 +326,6 @@
         plotGrade.drawYGrid();
         plotGrade.drawXGrid();
         markSegments(plotGrade);
-        plotGrade.drawArea(null, "grade");
+        plotGrade.drawLine(null, "grade");
     </script>
 {% endblock %}
