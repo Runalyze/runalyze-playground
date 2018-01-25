@@ -4,6 +4,30 @@
     {# @var conf \Runalyze\Bundle\CoreBundle\Component\Configuration\RunalyzeConfigurationList #}
     {% set conf = config() %}
 
+    <div style="text-align: center;">
+        <form action="{{ path('playground-new-vo2max-table') }}" method="get">
+            <label for="delta">Delta [s]</label> <input id="delta" name="delta" value="{{ settings.delta }}" class="small-size" type="number">
+            <label for="deltaBefore">Delta before [s]</label> <input id="deltaBefore" name="deltaBefore" value="{{ settings.deltaBefore }}" class="small-size" type="number">
+            <label for="hrDelta">HR-Delta [bpm]</label> <input id="hrDelta" name="hrDelta" value="{{ settings.hrDelta }}" class="small-size" type="number">
+            <label for="hrDeltaBefore">HR-Delta before [bpm]</label> <input id="hrDeltaBefore" name="hrDeltaBefore" value="{{ settings.hrDeltaBefore }}" class="small-size" type="number">
+            <label for="skip">Skip before [s]</label> <input id="skip" name="skip" value="{{ settings.skipBefore }}" class="small-size" type="number">
+            <label for="end">Skip after [s]</label> <input id="end" name="end" value="{{ settings.skipAfter }}" class="small-size" type="number">
+            <label for="ff">Butterworth ff [1/s]</label> <input id="ff" name="ff" value="{{ settings.butterworthFF }}" class="small-size" type="number" step="any">
+            <label for="gradientSmooth">Gradient smooth</label> <input id="gradientSmooth" name="gradientSmooth" value="{{ settings.gradientSmooth }}" class="small-size" type="number">
+            <br>
+            <label for="limit">Max activities</label> <input id="limit" name="limit" value="{{ settings.tableLimit }}" class="small-size" type="number">
+            <label for="date">Last date</label> <input id="date" name="date" value="{{ settings.tableEndDate }}" placeholder="dd-mm-YYYY">
+            <label for="ylim">y-axis lim</label> <input id="ylim" name="ylim" value="{{ settings.yLim }}" placeholder="min,max">
+            <br>
+            <label for="emaAlpha">EMA alpha (trend)</label> <input id="emaAlpha" name="emaAlpha" value="{{ settings.emaAlpha }}" class="small-size" type="number" step="any">
+            <label for="emaWeightFactor">Weighting (trend) [w = (1 / (factor + abs. error))^2]</label> <input id="emaWeightFactor" name="emaWeightFactor" value="{{ settings.emaWeightFactor }}" class="small-size" type="number" step="any">
+            <input type="submit" value="Reload" id="submit">
+            <a href="{{ path('playground-new-vo2max-table') }}" class="button inline small">Default</a>
+        </form>
+    </div>
+
+<div id="chart" class="scatterplot d3js" style="text-align:center;"></div>
+
 <table class="zebra-style w100">
     <thead>
     <tr>
@@ -12,6 +36,7 @@
         <th>km</th>
         <th>duration</th>
         <th>pace</th>
+        <th>hr</th>
         <th>prev. VO2max</th>
         <th>new VO2max (median)</th>
         <th>new VO2max (mean)</th>
@@ -28,6 +53,7 @@
             <td>{{ distance(activity.row.distance) }}</td>
             <td>{{ activity.row.s|duration }}</td>
             <td>{{ pace(activity.row.s / activity.row.distance) }}</td>
+            <td>{{ heartRate(activity.row.hr) }}</td>
             <td>{{ vo2max(activity.row.vo2max_with_elevation, conf) }}</td>
             <td>{{ vo2max(activity.median, conf) }}</td>
             <td>{{ vo2max(activity.mean, conf) }}</td>
@@ -39,9 +65,10 @@
     </tbody>
 </table>
 
-<div id="chart" class="scatterplot d3js" style="text-align:center;"></div>
-
 <style>
+input.small-size {
+    width: 40px;
+}
 .error-bar {
     display: none;
 }
@@ -88,11 +115,13 @@ path.marker-line {
     // + 7: error trend
     // + 8: error wrt variance of vo2max values (for last 30 days)
     var data = {{ jsonData|raw }}.reverse();
-    var emaAlpha = 0.5;
+    var yLim = {{ settings.ylim|json_encode }}
+    var emaAlpha = {{ settings.emaAlpha }};
+    var emaWeightFactor = {{ settings.emaWeightFactor }};
 
     for (var i = 0; i < data.length; ++i) {
         //data[i][2] *= 1 + 0.0714285714285714 / 2;
-        data[i][4] = 1 / (0.5 + data[i][3]);
+        data[i][4] = Math.pow(1 / (emaWeightFactor + data[i][3]), 2);
     }
 
     var movingAverage = function (data, indexPos, dataPos, newPos, alpha, deltaFactor) {
@@ -152,7 +181,14 @@ path.marker-line {
 
         plot.margin({top: 20, right: 120, bottom: 60, left: 60});
         plot.xScale = d3.scaleLinear().range([0, plot.width()]).domain([d3.min(data, function(d) { return d[0]; }), d3.max(data, function(d) { return d[0]; })]).nice(d3.timeMonth);
-        plot.yScale = d3.scaleLinear().range([plot.height(), 0]).domain([d3.min(data, function(d) { return Math.min(d[1], d[2]); }), d3.max(data, function(d) { return Math.max(d[1], d[2]); })]).nice();
+        plot.yScale = d3.scaleLinear().range([plot.height(), 0]);
+
+        if (yLim.length) {
+            plot.yScale.domain(yLim);
+        } else {
+            plot.yScale.domain([d3.min(data, function(d) { return Math.min(d[1], d[2]); }), d3.max(data, function(d) { return Math.max(d[1], d[2]); })]).nice();
+        }
+
         plot.select("#chart");
 
         plot.xAxis.tickFormat(d3.timeFormat("%d.%m.%Y"));
