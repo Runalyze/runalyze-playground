@@ -4,21 +4,6 @@
     {# @var conf \Runalyze\Bundle\CoreBundle\Component\Configuration\RunalyzeConfigurationList #}
     {% set conf = config() %}
 
-    <div style="text-align: center;">
-        <form action="{{ path('playground-new-vo2max-activity', {'id': activity.id}) }}" method="get">
-            <label for="delta">Delta [s]</label> <input id="delta" name="delta" value="{{ settings.delta }}" class="small-size" type="number">
-            <label for="deltaBefore">Delta before [s]</label> <input id="deltaBefore" name="deltaBefore" value="{{ settings.deltaBefore }}" class="small-size" type="number">
-            <label for="hrDelta">HR-Delta [bpm]</label> <input id="hrDelta" name="hrDelta" value="{{ settings.hrDelta }}" class="small-size" type="number">
-            <label for="hrDeltaBefore">HR-Delta before [bpm]</label> <input id="hrDeltaBefore" name="hrDeltaBefore" value="{{ settings.hrDeltaBefore }}" class="small-size" type="number">
-            <label for="skip">Skip before [s]</label> <input id="skip" name="skip" value="{{ settings.skipBefore }}" class="small-size" type="number">
-            <label for="end">Skip after [s]</label> <input id="end" name="end" value="{{ settings.skipAfter }}" class="small-size" type="number">
-            <label for="ff">Butterworth ff [1/s]</label> <input id="ff" name="ff" value="{{ settings.butterworthFF }}" class="small-size" type="number" step="any">
-            <label for="gradientSmooth">Gradient smooth</label> <input id="gradientSmooth" name="gradientSmooth" value="{{ settings.gradientSmooth }}" class="small-size" type="number">
-            <input type="submit" value="Reload" id="submit">
-            <a href="{{ path('playground-new-vo2max-activity', {'id': activity.id}) }}" class="button inline small">Default</a>
-        </form>
-    </div>
-
     <table>
         <thead>
         <tr>
@@ -27,19 +12,17 @@
             <th>km</th>
             <th>duration</th>
             <th>pace</th>
-            <th>hr</th>
             <th>prev. VO2max</th>
         </tr>
         </thead>
         <tbody>
             <tr class="r">
-                <td>#{{ activity.id }}</td>
-                <td>{{ activity.time|date("m/d/Y") }}</td>
-                <td>{{ distance(activity.distance) }}</td>
-                <td>{{ activity.s|duration }}</td>
-                <td>{{ pace(activity.s / activity.distance, sport.speedUnit) }}</td>
-                <td>{{ heartRate(activity.pulseAvg) }}</td>
-                <td>{{ vo2max(activity.vo2maxWithElevation, conf) }}</td>
+                <td>#{{ context.activity.id }}</td>
+                <td>{{ context.activity.time|date("m/d/Y") }}</td>
+                <td>{{ distance(context.activity.distance) }}</td>
+                <td>{{ context.activity.s|duration }}</td>
+                <td>{{ pace(context.activity.s / context.activity.distance, context.sport.speedUnit) }}</td>
+                <td>{{ vo2max(context.activity.vo2maxWithElevation, conf) }}</td>
             </tr>
         </tbody>
     </table>
@@ -72,6 +55,13 @@
                     Avg. Gradient factor
                 </label>
             </div>
+            <div style="text-align: center;">
+                <em>Further settings:</em> &nbsp;
+                Delta [s] <span class="mono">delta={{ settings.delta }}</span> &nbsp;
+                Begin [s] <span class="mono">skip={{ settings.skipBefore }}</span> &nbsp;
+                End [s] <span class="mono">end={{ settings.skipAfter }}</span> &nbsp;
+                Butterworth frequency <span class="mono">ff={{ settings.butterworthFF }}</span>
+            </div>
             <div id="estimation-results" class="c margin-top"></div>
             <div id="activity-chart-vo2max"></div>
             <div style="text-align: center; font-style: italic;">
@@ -83,9 +73,6 @@
     </div>
 
     <style>
-input.small-size {
-    width: 40px;
-}
 .heartrate {
     fill: none;
     stroke: rgb(136, 0, 0);
@@ -185,7 +172,7 @@ input.small-size {
         }
 
         function markSegments(plot) {
-            return segments.length ? plot.plotArea().append("g").attr("class", "segments").selectAll("rect")
+            return plot.plotArea().append("g").attr("class", "segments").selectAll("rect")
             	.data(segments)
             	.enter()
             	.append("rect")
@@ -193,73 +180,70 @@ input.small-size {
             	.attr("y", function(d) { return 0; })
             	.attr("width", function(d) { return plot.xScale(stream.dist[d[1]]) - plot.xScale(stream.dist[d[0]]); })
             	.attr("height", function(d) { return plot.height(); })
-            	.attr("fill", function(d) { return stream.time[d[1]] > {{ settings.skipAfter }} || stream.time[d[1]] < {{ settings.skipBefore }} ? "rgba(127,127,127,.25)" : "rgba(127,127,127,.5)"; }) : null;
+            	.attr("fill", function(d) { return stream.time[d[1]] > {{ settings.skipAfter }} || stream.time[d[1]] < {{ settings.skipBefore }} ? "rgba(127,127,127,.25)" : "rgba(127,127,127,.5)"; });
         }
 
-        if (streamEstimates.length) {
-            var plotVO2max = d3.runalyzeplot(streamEstimates).size(900, 200);
-            plotVO2max.xValue = function(d) { return d.dist; };
-            plotVO2max.yValue = function(d) { return d.avgGap; };
-            plotVO2max.xScale = d3.scaleLinear().range([0, plotVO2max.width()]).domain([stream.dist[0], stream.dist[stream.dist.length - 1]]);
-            plotVO2max.yScale = d3.scaleLinear().range([plotVO2max.height(), 0]).domain([
-                d3.min(streamEstimates, function(d) { return Math.min(d.totalPace, d.avgPace, d.gap, d.avgGap, d.avgGradient); }) - 0.5,
-                d3.max(streamEstimates, function(d) { return Math.max(d.totalPace, d.avgPace, d.gap, d.avgGap, d.avgGradient); }) + 0.5,
-            ]).nice();
-            plotVO2max.select("#activity-chart-vo2max");
-            plotVO2max.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
-            plotVO2max.drawAxes();
-            plotVO2max.drawYGrid();
-            plotVO2max.drawXGrid();
-    
-            let estimateTypes = ['totalPace', 'avgPace', 'gap', 'avgGap', 'avgGradient'];
-            for (let i = 0; i < estimateTypes.length; ++i) {
-                let estimatesTrend = regression('linear', streamEstimates.map(function(d) { return [d.dist, d[estimateTypes[i]]]; }));
-                let estimatesTrendTS = theilSenRegression(streamEstimates.map(function(d) { return d.dist; }), streamEstimates.map(function(d) { return d[estimateTypes[i]]; }));
-                plotVO2max.plotArea().append("g").attr("class", "estimates-trend "+estimateTypes[i]).append("line")
-                    .attr("x1", plotVO2max.xScale(estimatesTrend.points[0][0])).attr("y1", plotVO2max.yScale(estimatesTrendTS.intercept + estimatesTrendTS.slope * estimatesTrend.points[0][0]))
-                    .attr("x2", plotVO2max.xScale(estimatesTrend.points[estimatesTrend.points.length - 1][0])).attr("y2", plotVO2max.yScale(estimatesTrendTS.intercept + estimatesTrendTS.slope * estimatesTrend.points[estimatesTrend.points.length - 1][0]))
-                    .style("stroke", "blue").style("stroke-opacity", "0.5").style("stroke-width", "1");
-                plotVO2max.plotArea().append("g").attr("class", "estimates-trend "+estimateTypes[i]).append("line")
-                    .attr("x1", plotVO2max.xScale(estimatesTrend.points[0][0])).attr("y1", plotVO2max.yScale(estimatesTrend.points[0][1]))
-                    .attr("x2", plotVO2max.xScale(estimatesTrend.points[estimatesTrend.points.length - 1][0])).attr("y2", plotVO2max.yScale(estimatesTrend.points[estimatesTrend.points.length - 1][1]))
-                    .style("stroke", "black").style("stroke-opacity", "0.5").style("stroke-width", "2");
-    
-                plotVO2max.plotArea().append("g").attr("class", "estimates "+estimateTypes[i]).selectAll("circle").data(streamEstimates).enter().append("circle").attr("cx", plotVO2max.xMap).attr("cy", function(d){
-                    return plotVO2max.yScale(d[estimateTypes[i]]);
-                }).attr("r", 3).attr("fill", function(d) { return d.time > {{ settings.skipAfter }} || d.time < {{ settings.skipBefore }} ? "rgba(0,0,0,.25)" : "black"; });
-    
-                let relevantEstimates = streamEstimates.filter(function(d) { return d.time <= {{ settings.skipAfter }} && d.time >= {{ settings.skipBefore }}; });
-                let relevantEstimatesMedian = d3.median(relevantEstimates, function(d) { return d[estimateTypes[i]]; });
-                let streamEstimatesMedian = d3.median(streamEstimates, function(d) { return d[estimateTypes[i]]; });
-                let relevantEstimatesMedianDiff = relevantEstimates.map(function(d) { return Math.abs(d[estimateTypes[i]] - relevantEstimatesMedian); });
-                let streamEstimatesMedianDiff = streamEstimates.map(function(d) { return Math.abs(d[estimateTypes[i]] - streamEstimatesMedian); });
-    
-                $("#estimation-results").append('<div class="details '+estimateTypes[i]+'">Mean: {0} (<em>for all: {1}</em>) &nbsp; Median: <strong>{2}</strong> (<em>for all: {3}</em>) &nbsp; Abs. error: {4} (<em>for all: {5}</em>) &nbsp; MAD error: <strong>{6}</strong> (<em>for all: {7}</em>)<br>Trendline: {8} (r^2 = {9})</div>'.format(
-                    d3.mean(relevantEstimates, function(d) { return d[estimateTypes[i]]; }).toFixed(2),
-                    d3.mean(streamEstimates, function(d) { return d[estimateTypes[i]]; }).toFixed(2),
-                    relevantEstimatesMedian.toFixed(2),
-                    streamEstimatesMedian.toFixed(2),
-                    (d3.deviation(relevantEstimates, function(d) { return d[estimateTypes[i]]; }) / Math.sqrt(relevantEstimates.length)).toFixed(2),
-                    (d3.deviation(streamEstimates, function(d) { return d[estimateTypes[i]]; }) / Math.sqrt(streamEstimates.length)).toFixed(2),
-                    (d3.median(relevantEstimatesMedianDiff) / Math.sqrt(relevantEstimates.length)).toFixed(2),
-                    (d3.median(streamEstimatesMedianDiff) / Math.sqrt(streamEstimates.length)).toFixed(2),
-                    estimatesTrend.string,
-                    estimatesTrend.r2.toFixed(4)
-                ));
-            }
+        //$charts.append('<div id="activity-chart-vo2max"></div>');
+        var plotVO2max = d3.runalyzeplot(streamEstimates).size(900, 200);
+        plotVO2max.xValue = function(d) { return d.dist; };
+        plotVO2max.yValue = function(d) { return d.avgGap; };
+        plotVO2max.xScale = d3.scaleLinear().range([0, plotVO2max.width()]).domain([stream.dist[0], stream.dist[stream.dist.length - 1]]);
+        plotVO2max.yScale = d3.scaleLinear().range([plotVO2max.height(), 0]).domain([
+            d3.min(streamEstimates, function(d) { return Math.min(d.totalPace, d.avgPace, d.gap, d.avgGap, d.avgGradient); }) - 0.5,
+            d3.max(streamEstimates, function(d) { return Math.max(d.totalPace, d.avgPace, d.gap, d.avgGap, d.avgGradient); }) + 0.5,
+        ]).nice();
+        plotVO2max.select("#activity-chart-vo2max");
+        plotVO2max.xAxis.tickFormat(function(v){ return v.toFixed(1)+" km";});
+        plotVO2max.drawAxes();
+        plotVO2max.drawYGrid();
+        plotVO2max.drawXGrid();
 
-            $("#estimation-method-chooser").bind('click', function(){
-                $("#activity-chart-vo2max .estimates").hide();
-                $("#activity-chart-vo2max .estimates."+$(this).find('input:checked').val()).show();
-                $("#activity-chart-vo2max .estimates-trend").hide();
-                $("#activity-chart-vo2max .estimates-trend."+$(this).find('input:checked').val()).show();
-                $("#estimation-results .details").hide();
-                $("#estimation-results .details."+$(this).find('input:checked').val()).show();
-            });
-            $("#estimation-method-chooser").trigger('click');
-        } else {
-            $("#estimation-method-chooser").remove();
+        let estimateTypes = ['totalPace', 'avgPace', 'gap', 'avgGap', 'avgGradient'];
+        for (let i = 0; i < estimateTypes.length; ++i) {
+            let estimatesTrend = regression('linear', streamEstimates.map(function(d) { return [d.dist, d[estimateTypes[i]]]; }));
+            let estimatesTrendTS = theilSenRegression(streamEstimates.map(function(d) { return d.dist; }), streamEstimates.map(function(d) { return d[estimateTypes[i]]; }));
+            plotVO2max.plotArea().append("g").attr("class", "estimates-trend "+estimateTypes[i]).append("line")
+                .attr("x1", plotVO2max.xScale(estimatesTrend.points[0][0])).attr("y1", plotVO2max.yScale(estimatesTrendTS.intercept + estimatesTrendTS.slope * estimatesTrend.points[0][0]))
+                .attr("x2", plotVO2max.xScale(estimatesTrend.points[estimatesTrend.points.length - 1][0])).attr("y2", plotVO2max.yScale(estimatesTrendTS.intercept + estimatesTrendTS.slope * estimatesTrend.points[estimatesTrend.points.length - 1][0]))
+                .style("stroke", "blue").style("stroke-opacity", "0.5").style("stroke-width", "1");
+            plotVO2max.plotArea().append("g").attr("class", "estimates-trend "+estimateTypes[i]).append("line")
+                .attr("x1", plotVO2max.xScale(estimatesTrend.points[0][0])).attr("y1", plotVO2max.yScale(estimatesTrend.points[0][1]))
+                .attr("x2", plotVO2max.xScale(estimatesTrend.points[estimatesTrend.points.length - 1][0])).attr("y2", plotVO2max.yScale(estimatesTrend.points[estimatesTrend.points.length - 1][1]))
+                .style("stroke", "black").style("stroke-opacity", "0.5").style("stroke-width", "2");
+
+            plotVO2max.plotArea().append("g").attr("class", "estimates "+estimateTypes[i]).selectAll("circle").data(streamEstimates).enter().append("circle").attr("cx", plotVO2max.xMap).attr("cy", function(d){
+                return plotVO2max.yScale(d[estimateTypes[i]]);
+            }).attr("r", 3).attr("fill", function(d) { return d.time > {{ settings.skipAfter }} || d.time < {{ settings.skipBefore }} ? "rgba(0,0,0,.25)" : "black"; });
+
+            let relevantEstimates = streamEstimates.filter(function(d) { return d.time <= {{ settings.skipAfter }} && d.time >= {{ settings.skipBefore }}; });
+            let relevantEstimatesMedian = d3.median(relevantEstimates, function(d) { return d[estimateTypes[i]]; });
+            let streamEstimatesMedian = d3.median(streamEstimates, function(d) { return d[estimateTypes[i]]; });
+            let relevantEstimatesMedianDiff = relevantEstimates.map(function(d) { return Math.abs(d[estimateTypes[i]] - relevantEstimatesMedian); });
+            let streamEstimatesMedianDiff = streamEstimates.map(function(d) { return Math.abs(d[estimateTypes[i]] - streamEstimatesMedian); });
+
+            $("#estimation-results").append('<div class="details '+estimateTypes[i]+'">Mean: {0} (<em>for all: {1}</em>) &nbsp; Median: <strong>{2}</strong> (<em>for all: {3}</em>) &nbsp; Abs. error: {4} (<em>for all: {5}</em>) &nbsp; MAD error: <strong>{6}</strong> (<em>for all: {7}</em>)<br>Trendline: {8} (r^2 = {9})</div>'.format(
+                d3.mean(relevantEstimates, function(d) { return d[estimateTypes[i]]; }).toFixed(2),
+                d3.mean(streamEstimates, function(d) { return d[estimateTypes[i]]; }).toFixed(2),
+                relevantEstimatesMedian.toFixed(2),
+                streamEstimatesMedian.toFixed(2),
+                (d3.deviation(relevantEstimates, function(d) { return d[estimateTypes[i]]; }) / Math.sqrt(relevantEstimates.length)).toFixed(2),
+                (d3.deviation(streamEstimates, function(d) { return d[estimateTypes[i]]; }) / Math.sqrt(streamEstimates.length)).toFixed(2),
+                (d3.median(relevantEstimatesMedianDiff) / Math.sqrt(relevantEstimates.length)).toFixed(2),
+                (d3.median(streamEstimatesMedianDiff) / Math.sqrt(streamEstimates.length)).toFixed(2),
+                estimatesTrend.string,
+                estimatesTrend.r2.toFixed(4)
+            ));
         }
+
+        $("#estimation-method-chooser").bind('click', function(){
+            $("#activity-chart-vo2max .estimates").hide();
+            $("#activity-chart-vo2max .estimates."+$(this).find('input:checked').val()).show();
+            $("#activity-chart-vo2max .estimates-trend").hide();
+            $("#activity-chart-vo2max .estimates-trend."+$(this).find('input:checked').val()).show();
+            $("#estimation-results .details").hide();
+            $("#estimation-results .details."+$(this).find('input:checked').val()).show();
+        });
+        $("#estimation-method-chooser").trigger('click');
 
         $charts.append('<div id="activity-chart-hr"></div>');
         var plotHr = d3.runalyzeplot(streamD3).size(900, 200);

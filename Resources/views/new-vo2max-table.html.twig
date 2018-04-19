@@ -4,30 +4,6 @@
     {# @var conf \Runalyze\Bundle\CoreBundle\Component\Configuration\RunalyzeConfigurationList #}
     {% set conf = config() %}
 
-    <div style="text-align: center;">
-        <form action="{{ path('playground-new-vo2max-table') }}" method="get">
-            <label for="delta">Delta [s]</label> <input id="delta" name="delta" value="{{ settings.delta }}" class="small-size" type="number">
-            <label for="deltaBefore">Delta before [s]</label> <input id="deltaBefore" name="deltaBefore" value="{{ settings.deltaBefore }}" class="small-size" type="number">
-            <label for="hrDelta">HR-Delta [bpm]</label> <input id="hrDelta" name="hrDelta" value="{{ settings.hrDelta }}" class="small-size" type="number">
-            <label for="hrDeltaBefore">HR-Delta before [bpm]</label> <input id="hrDeltaBefore" name="hrDeltaBefore" value="{{ settings.hrDeltaBefore }}" class="small-size" type="number">
-            <label for="skip">Skip before [s]</label> <input id="skip" name="skip" value="{{ settings.skipBefore }}" class="small-size" type="number">
-            <label for="end">Skip after [s]</label> <input id="end" name="end" value="{{ settings.skipAfter }}" class="small-size" type="number">
-            <label for="ff">Butterworth ff [1/s]</label> <input id="ff" name="ff" value="{{ settings.butterworthFF }}" class="small-size" type="number" step="any">
-            <label for="gradientSmooth">Gradient smooth</label> <input id="gradientSmooth" name="gradientSmooth" value="{{ settings.gradientSmooth }}" class="small-size" type="number">
-            <br>
-            <label for="limit">Max activities</label> <input id="limit" name="limit" value="{{ settings.tableLimit }}" class="small-size" type="number">
-            <label for="date">Last date</label> <input id="date" name="date" value="{{ settings.tableEndDate }}" placeholder="dd-mm-YYYY">
-            <label for="ylim">y-axis lim</label> <input id="ylim" name="ylim" value="{{ settings.yLim }}" placeholder="min,max">
-            <br>
-            <label for="emaAlpha">EMA alpha (trend)</label> <input id="emaAlpha" name="emaAlpha" value="{{ settings.emaAlpha }}" class="small-size" type="number" step="any">
-            <label for="emaWeightFactor">Weighting (trend) [w = (1 / (factor + abs. error))^2]</label> <input id="emaWeightFactor" name="emaWeightFactor" value="{{ settings.emaWeightFactor }}" class="small-size" type="number" step="any">
-            <input type="submit" value="Reload" id="submit">
-            <a href="{{ path('playground-new-vo2max-table') }}" class="button inline small">Default</a>
-        </form>
-    </div>
-
-<div id="chart" class="scatterplot d3js" style="text-align:center;"></div>
-
 <table class="zebra-style w100">
     <thead>
     <tr>
@@ -36,7 +12,6 @@
         <th>km</th>
         <th>duration</th>
         <th>pace</th>
-        <th>hr</th>
         <th>prev. VO2max</th>
         <th>new VO2max (median)</th>
         <th>new VO2max (mean)</th>
@@ -53,7 +28,6 @@
             <td>{{ distance(activity.row.distance) }}</td>
             <td>{{ activity.row.s|duration }}</td>
             <td>{{ pace(activity.row.s / activity.row.distance) }}</td>
-            <td>{{ heartRate(activity.row.hr) }}</td>
             <td>{{ vo2max(activity.row.vo2max_with_elevation, conf) }}</td>
             <td>{{ vo2max(activity.median, conf) }}</td>
             <td>{{ vo2max(activity.mean, conf) }}</td>
@@ -65,10 +39,22 @@
     </tbody>
 </table>
 
+<div id="form-container" style="width:900px;margin-left:auto;margin-right:auto;text-align:center;">
+    <label>
+        <!--    
+        // 0.20  -> last 21 days count for >= 99%
+        // 0.15  -> last 29 days count for >= 99%
+        // 0.10  -> last 44 days count for >= 99%
+        // 0.075 -> last 30 days count for >= 90%
+        -->
+        <input id="estimation-ema-alpha" type="number" name="estimation-ema-alpha" value="0.15" min="0.01" max="0.50" step="0.01">
+        EMA alpha
+    </label>
+</div>
+
+<div id="chart" class="scatterplot d3js" style="text-align:center;"></div>
+
 <style>
-input.small-size {
-    width: 40px;
-}
 .error-bar {
     display: none;
 }
@@ -115,13 +101,15 @@ path.marker-line {
     // + 7: error trend
     // + 8: error wrt variance of vo2max values (for last 30 days)
     var data = {{ jsonData|raw }}.reverse();
-    var yLim = {{ settings.ylim|json_encode }}
-    var emaAlpha = {{ settings.emaAlpha }};
-    var emaWeightFactor = {{ settings.emaWeightFactor }};
 
     for (var i = 0; i < data.length; ++i) {
         //data[i][2] *= 1 + 0.0714285714285714 / 2;
-        data[i][4] = Math.pow(1 / (emaWeightFactor + data[i][3]), 2);
+
+        if (data[i][3] == 0.0) { // This means: only one valid segment
+            data[i][4] = 1 / (0.5 + 5.0);
+        } else {
+            data[i][4] = 1 / (0.5 + data[i][3]);
+        }
     }
 
     var movingAverage = function (data, indexPos, dataPos, newPos, alpha, deltaFactor) {
@@ -158,38 +146,39 @@ path.marker-line {
         return data;
     };
 
-    movingAverage(data, 0, 2, 5, emaAlpha);
-    weightedMovingAverage(data, 0, 4, 2, 6, emaAlpha);
-    movingAverage(data, 0, 3, 7, emaAlpha);
+    var plot = d3.runalyzeplot(data).size(1200, 500);
+        plot.margin({top: 20, right: 120, bottom: 60, left: 60});
+        plot.select("#chart");
 
-    for (var i = 0; i < data.length; ++i) {
-        var estimates = [];
-        for (var j = 0; j < data.length; ++j) {
-            if (data[j][0] <= data[i][0] && data[i][0] - data[j][0] <= 30 * 86400000) {
-                estimates.push(data[j][2]);
+    var calculateAndPlot = function() {
+        var emaAlpha = $('#estimation-ema-alpha').val();
+
+        movingAverage(data, 0, 2, 5, emaAlpha);
+        weightedMovingAverage(data, 0, 4, 2, 6, emaAlpha);
+        movingAverage(data, 0, 3, 7, emaAlpha);
+    
+        for (var i = 0; i < data.length; ++i) {
+            var estimates = [];
+            for (var j = 0; j < data.length; ++j) {
+                if (data[j][0] <= data[i][0] && data[i][0] - data[j][0] <= 30 * 86400000) {
+                    estimates.push(data[j][2]);
+                }
+            }
+    
+            if (estimates.length > 1) {
+                data[i][8] = d3.variance(estimates) / Math.sqrt(estimates.length);
+            } else {
+                data[i][8] = 5.0;
             }
         }
 
-        if (estimates.length > 1) {
-            data[i][8] = d3.variance(estimates) / Math.sqrt(estimates.length);
-        } else {
-            data[i][8] = 5.0;
-        }
-    }
+        plot.gridArea().selectAll('*').remove();
+        plot.plotArea().selectAll('*').remove();
+        plot.axesArea().selectAll('*').remove();
+        plot.svg().selectAll('.current-state').remove();
 
-    var plot = d3.runalyzeplot(data).size(1200, 500);
-
-        plot.margin({top: 20, right: 120, bottom: 60, left: 60});
         plot.xScale = d3.scaleLinear().range([0, plot.width()]).domain([d3.min(data, function(d) { return d[0]; }), d3.max(data, function(d) { return d[0]; })]).nice(d3.timeMonth);
-        plot.yScale = d3.scaleLinear().range([plot.height(), 0]);
-
-        if (yLim.length) {
-            plot.yScale.domain(yLim);
-        } else {
-            plot.yScale.domain([d3.min(data, function(d) { return Math.min(d[1], d[2]); }), d3.max(data, function(d) { return Math.max(d[1], d[2]); })]).nice();
-        }
-
-        plot.select("#chart");
+        plot.yScale = d3.scaleLinear().range([plot.height(), 0]).domain([d3.min(data, function(d) { return Math.min(d[1], d[2], 25); }), d3.max(data, function(d) { return Math.max(d[1], d[2], 75); })]).nice();
 
         plot.xAxis.tickFormat(d3.timeFormat("%d.%m.%Y"));
 
@@ -197,76 +186,81 @@ path.marker-line {
         plot.drawYGrid();
         plot.drawXGrid();
 
-    plot.svg().append("g").attr("class", "vo2max-old")
-        .selectAll("scatter-dots")
-        .data(data)
-        .enter().append("svg:circle")
-        .attr("cx", plot.xMap)
-        .attr("cy", function (d) { return plot.yScale(d[1]); } )
-        .attr("r", 1);
-
-    var errorBarArea = d3.area()
-        .x(plot.xMap)
-        .y0(function(d) {return plot.yScale(d[2] - d[3]); })
-        .y1(function(d) {return plot.yScale(d[2] + d[3]); });
-
-    plot.svg().append('g').attr('class', 'error-bar')
-        .selectAll("path")
-        .data(data)
-        .enter().append("path")
-        .attr("d", function(d){return errorBarArea([d]);});
-
-    plot.svg().append("g").attr("class", "vo2max-new")
-        .selectAll("scatter-dots-new")
-        .data(data)
-        .enter().append("svg:circle")
-        .attr("cx", plot.xMap)
-        .attr("cy", function (d) { return plot.yScale(d[2]); } )
-        .attr("fill-opacity", function (d) { return d[4]; } )
-        .attr("r", 3);
-
-    var trends = plot.svg().append("g").attr("class", "trends");
-
-    var trendline = d3.line()
-        .x(plot.xMap)
-        .y(function(d) { return plot.yScale(d[6]); })
-        .curve(d3.curveBasis);
-
-    trends.append("path").datum(data).attr("class", "trend").attr("d", trendline);
-
-    var trendlineWithError = d3.area()
-        .x(plot.xMap)
-        .y0(function(d) { return plot.yScale(d[6] + d[7] + d[8] / 2); })
-        .y1(function(d) { return plot.yScale(d[6] - d[7] - d[8] / 2); })
-        .curve(d3.curveBasis);
-
-    trends.append("path").datum(data).attr("class", "trendarea").attr("d", trendlineWithError);
-
-    if (data.length >= 2) {
-        var currStateX = plot.width() + 0.5,
-            currStateY = plot.yScale(data[data.length-1][6]) - 0.5,
-            currState = plot.svg().append("g").attr("class", "marker current-state").attr("transform", "translate("+currStateX+","+currStateY+")"),
-            currStateDiff = data[data.length-1][6] - data[data.length-2][6];
+        plot.plotArea().append("g").attr("class", "vo2max-old")
+            .selectAll("scatter-dots")
+            .data(data)
+            .enter().append("svg:circle")
+            .attr("cx", plot.xMap)
+            .attr("cy", function (d) { return plot.yScale(d[1]); } )
+            .attr("r", 1);
     
-        currState.append("path")
-            .attr("d", d3.line().x(function(d){ return d[0]; }).y(function(d){ return d[1]; })([[0, 0], [16, 0]]))
-            .attr("class", "marker-line");
-        currState.append("text").attr("class", "label light").text("Current VO2max").attr("transform", "translate(18,3)").attr("dy", "-1.2em");
-        currState.append("text").text(data[data.length-1][6].toFixed(2)).attr("transform", "translate(28,3)").attr("font-weight", "bold");
-
-        var triangle = { x: 21, y: 0, deg: 90, fill: 'black'};
-
-        if (currStateDiff > 0.5) {
-            triangle = { x: 22, y: 1, deg: 0, fill: '#0c0'};
-        } else if (currStateDiff < -0.5) {
-            triangle = { x: 22, y: -1, deg: 180, fill: '#c00'};
+        var errorBarArea = d3.area()
+            .x(plot.xMap)
+            .y0(function(d) {return plot.yScale(d[2] - d[3]); })
+            .y1(function(d) {return plot.yScale(d[2] + d[3]); });
+    
+        plot.plotArea().append('g').attr('class', 'error-bar')
+            .selectAll("path")
+            .data(data)
+            .enter().append("path")
+            .attr("d", function(d){return errorBarArea([d]);});
+    
+        plot.plotArea().append("g").attr("class", "vo2max-new")
+            .selectAll("scatter-dots-new")
+            .data(data)
+            .enter().append("svg:circle")
+            .attr("cx", plot.xMap)
+            .attr("cy", function (d) { return plot.yScale(d[2]); } )
+            .attr("fill-opacity", function (d) { return d[4]; } )
+            .attr("r", 3);
+    
+        var trends = plot.plotArea().append("g").attr("class", "trends");
+    
+        var trendline = d3.line()
+            .x(plot.xMap)
+            .y(function(d) { return plot.yScale(d[6]); })
+            .curve(d3.curveBasis);
+    
+        trends.append("path").datum(data).attr("class", "trend").attr("d", trendline);
+    
+        var trendlineWithError = d3.area()
+            .x(plot.xMap)
+            .y0(function(d) { return plot.yScale(d[6] + d[7] + d[8] / 2); })
+            .y1(function(d) { return plot.yScale(d[6] - d[7] - d[8] / 2); })
+            .curve(d3.curveBasis);
+    
+        trends.append("path").datum(data).attr("class", "trendarea").attr("d", trendlineWithError);
+    
+        if (data.length >= 2) {
+            var currStateX = plot.width() + 0.5,
+                currStateY = plot.yScale(data[data.length-1][6]) - 0.5,
+                currState = plot.svg().append("g").attr("class", "marker current-state").attr("transform", "translate("+currStateX+","+currStateY+")"),
+                currStateDiff = data[data.length-1][6] - data[data.length-2][6];
+        
+            currState.append("path")
+                .attr("d", d3.line().x(function(d){ return d[0]; }).y(function(d){ return d[1]; })([[0, 0], [16, 0]]))
+                .attr("class", "marker-line");
+            currState.append("text").attr("class", "label light").text("Current VO2max").attr("transform", "translate(18,3)").attr("dy", "-1.2em");
+            currState.append("text").text(data[data.length-1][6].toFixed(2)).attr("transform", "translate(28,3)").attr("font-weight", "bold");
+    
+            var triangle = { x: 21, y: 0, deg: 90, fill: 'black'};
+    
+            if (currStateDiff > 0.5) {
+                triangle = { x: 22, y: 1, deg: 0, fill: '#0c0'};
+            } else if (currStateDiff < -0.5) {
+                triangle = { x: 22, y: -1, deg: 180, fill: '#c00'};
+            }
+    
+            // TODO: comparison vs. last month and vs. last year
+            currState.append('path')
+                .attr('d', d3.symbol().type(d3.symbolTriangle).size(20)([1]))
+                .attr('fill', triangle.fill)
+                .attr('transform', "translate("+triangle.x+","+triangle.y+") rotate("+triangle.deg+")");
         }
-
-        // TODO: comparison vs. last month and vs. last year
-        currState.append('path')
-            .attr('d', d3.symbol().type(d3.symbolTriangle).size(20)([1]))
-            .attr('fill', triangle.fill)
-            .attr('transform', "translate("+triangle.x+","+triangle.y+") rotate("+triangle.deg+")");
     }
+
+    calculateAndPlot();
+
+    $('#estimation-ema-alpha').on('change', calculateAndPlot);
 </script>
 {% endblock %}
