@@ -1,9 +1,6 @@
 {% extends "PlaygroundBundle::base.html.twig" %}
 
 {% block body %}
-    {# @var conf \Runalyze\Bundle\CoreBundle\Component\Configuration\RunalyzeConfigurationList #}
-    {% set conf = config() %}
-
     <table>
         <thead>
         <tr>
@@ -58,9 +55,15 @@
             <div style="text-align: center;">
                 <em>Further settings:</em> &nbsp;
                 Delta [s] <span class="mono">delta={{ settings.delta }}</span> &nbsp;
+                Delta, pre [s] <span class="mono">deltaPre={{ settings.deltaPre }}</span> &nbsp;
+                Delta, after [s] <span class="mono">deltaAfter={{ settings.deltaAfter }}</span>
+                <br>
+                Delta, hr [bpm] <span class="mono">hrDelta={{ settings.hrDelta }}</span> &nbsp;
                 Begin [s] <span class="mono">skip={{ settings.skipBefore }}</span> &nbsp;
                 End [s] <span class="mono">end={{ settings.skipAfter }}</span> &nbsp;
                 Butterworth frequency <span class="mono">ff={{ settings.butterworthFF }}</span>
+                <br>
+                Correction factor [-] <span class="mono">cf={{ athlete.correctionFactor }}</span>
             </div>
             <div id="estimation-results" class="c margin-top"></div>
             <div id="activity-chart-vo2max"></div>
@@ -142,6 +145,7 @@
         var estimates = {{ estimates|json_encode|raw }};
         var streamD3 = [];
         var streamEstimates = [];
+        var cf = {{ athlete.correctionFactor }};
 
         for (var i = 0; i < stream.time.length; ++i) {
             streamD3[i] = {
@@ -163,11 +167,11 @@
             streamEstimates[i] = {
                 'time': stream.time[segments[i][1]],
                 'dist': (stream.dist[segments[i][1]] + stream.dist[segments[i][0]]) / 2,
-                'totalPace': estimates.totalPace[i],
-                'avgPace': estimates.avgPace[i],
-                'gap': estimates.gap[i],
-                'avgGap': estimates.avgGap[i],
-                'avgGradient': estimates.avgGradient[i]
+                'totalPace': cf * estimates.totalPace[i],
+                'avgPace': cf * estimates.avgPace[i],
+                'gap': cf * estimates.gap[i],
+                'avgGap': cf * estimates.avgGap[i],
+                'avgGradient': cf * estimates.avgGradient[i]
             };
         }
 
